@@ -256,6 +256,21 @@
           $$ = plus($1, $3);
         }
       |
+        expression '-' expression
+        { 
+          $$ = sub($1, $3);
+        }
+      |
+        expression '*' expression
+        { 
+          $$ = mul($1, $3);
+        }
+      |
+        expression '/' expression
+        { 
+          $$ = divide($1, $3);
+        }
+      |
         BOOL_CONST
         {
           $$ = bool_const($1);
@@ -288,15 +303,10 @@ expr ::=
   | case expr of [[ID : TYPE => expr; ]]+esac
   | new TYPE
   | isvoid expr
-  | expr + expr
-  | expr − expr
-  | expr ∗ expr
-  | expr / expr
   | ˜expr
   | expr < expr
   | expr <= expr
   | expr = expr
-  | not expr
   | (expr)
 */
     
