@@ -271,6 +271,31 @@
           $$ = divide($1, $3);
         }
       |
+        '~' expression
+        { 
+          $$ = neg($2);
+        }
+      |
+        ISVOID expression
+        { 
+          $$ = isvoid($2);
+        }
+      |
+        expression '<' expression
+        { 
+          $$ = lt($1, $3);
+        }
+      |
+        expression LE expression
+        { 
+          $$ = leq($1, $3);
+        }
+      |
+        expression '=' expression
+        { 
+          $$ = eq($1, $3);
+        }
+      |
         BOOL_CONST
         {
           $$ = bool_const($1);
@@ -302,11 +327,6 @@ expr ::=
   | let ID : TYPE [ <- expr ] [[,ID : TYPE [ <- expr ]]]∗ in expr
   | case expr of [[ID : TYPE => expr; ]]+esac
   | new TYPE
-  | isvoid expr
-  | ˜expr
-  | expr < expr
-  | expr <= expr
-  | expr = expr
   | (expr)
 */
     
