@@ -234,12 +234,12 @@
     ;
 
     expression_list :
-        expression			/* single expression */
+        expression ';'			/* single expression */
         { 
           $$ = single_Expressions($1); 
         }
       |
-        expression_list expression	/* several expressions */
+        expression_list expression ';'	/* several expressions */
         { 
           $$ = append_Expressions($1,single_Expressions($2)); 
         } 
@@ -281,6 +281,21 @@
           $$ = isvoid($2);
         }
       |
+        '(' expression ')'
+        { 
+          $$ = $2;
+        }
+      |
+        '{' expression_list '}'
+        { 
+          $$ = block($2);
+        }
+      |
+        NOT expression
+        { 
+          $$ = comp($2);
+        }
+      |
         expression '<' expression
         { 
           $$ = lt($1, $3);
@@ -294,6 +309,11 @@
         expression '=' expression
         { 
           $$ = eq($1, $3);
+        }
+      |
+        NEW TYPEID
+        { 
+          $$ = new_($2);
         }
       |
         BOOL_CONST
@@ -326,8 +346,6 @@ expr ::=
   | { [[expr; ]]+}
   | let ID : TYPE [ <- expr ] [[,ID : TYPE [ <- expr ]]]∗ in expr
   | case expr of [[ID : TYPE => expr; ]]+esac
-  | new TYPE
-  | (expr)
 */
     
     /* end of grammar */
