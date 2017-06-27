@@ -141,7 +141,8 @@
     %type <formal> formal
     %type <expressions> expression_list
     %type <expression> expression
-
+    %type <cases> case_list
+    %type <case_> case
 
     /* Precedence declarations go here. */
     
@@ -246,7 +247,7 @@
     ;
 
    expression	: 
-        OBJECTID DARROW expression
+        OBJECTID ASSIGN expression
         { 
           $$ = assign($1, $3);
         }
@@ -311,6 +312,31 @@
           $$ = eq($1, $3);
         }
       |
+        WHILE expression LOOP expression POOL
+        { 
+          $$ = loop($2, $4);
+        }
+      |
+        IF expression THEN expression ELSE expression FI
+        {
+          $$ = cond($2, $4, $6);
+        }
+      |
+        LET OBJECTID ':' TYPEID ASSIGN expression IN expression
+        {
+          $$ = let($2, $4, $6, $8);
+        }
+      |
+        LET OBJECTID ':' TYPEID IN expression
+        {
+          $$ = let($2, $4, no_expr(), $6);
+        }
+      |
+        CASE expression OF case_list
+        {
+          $$ = typcase($2, $4);
+        }
+      |
         NEW TYPEID
         { 
           $$ = new_($2);
@@ -337,13 +363,30 @@
         }
     ;
 
+    case_list : 
+        case		/* single case */
+        { 
+          $$ = single_Cases($1);
+        }
+      | 
+        case_list case	/* several cases */
+        { 
+          $$ = append_Cases($1,single_Cases($2)); 
+        } 
+    ;
+
+    case    : 
+        OBJECTID ':' TYPEID DARROW expression ';'
+        { 
+          $$ = branch($1, $3, $5);
+        }
+    ;
+ 
+
 /*
 expr ::= 
   | expr[@TYPE].ID( [ expr [[, expr]]∗  ] )
   | ID( [ expr [[, expr]]∗  ] )
-  | if expr then expr else expr fi
-  | while expr loop expr pool
-  | { [[expr; ]]+}
   | let ID : TYPE [ <- expr ] [[,ID : TYPE [ <- expr ]]]∗ in expr
   | case expr of [[ID : TYPE => expr; ]]+esac
 */
