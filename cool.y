@@ -203,11 +203,6 @@
           $$ = nil_Features(); 
         }
       |
-        feature ';'
-        { 
-          $$ = single_Features($1);
-        }
-      | 
         feature_list feature ';'
         { 
           $$ = append_Features($1,single_Features($2)); 
@@ -284,11 +279,6 @@
         { 
           $$ = append_Expressions($1,single_Expressions($3)); 
         } 
-/*      | 
-        expression_arg_list ',' error
-        {
-          $$ = $1;
-        }*/
     ;
 
     let_expr_list :
@@ -305,6 +295,11 @@
         let_expr_list ',' error
         {
           $$ = $1;
+        }
+      |
+        error ',' let_expr_list
+        {
+          $$ = $3;
         }
     ; 
 
@@ -399,6 +394,12 @@
         {
           /*
             The idea here is that in I introduced new method in let_class : setNext.
+
+            void setNext(Expression a4)
+	    {
+	      body = a4;
+	    }
+
             I collect all nested variable declarations (separated by comma) in a list.
             But the problem is that they were created with no_expr() as 4th (body) parameter.
             So I need to fix this using setNext method. I'm doing this in the cycle below:
