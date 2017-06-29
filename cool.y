@@ -139,13 +139,25 @@
     %type <feature> feature
     %type <formals> formal_list
     %type <formal> formal
-    %type <expressions> expression_list
+    %type <expressions> expression_list expression_arg_list
     %type <expression> expression
     %type <cases> case_list
     %type <case_> case
 
     /* Precedence declarations go here. */
     
+    %left ASSIGN
+    %left NOT
+    %nonassoc '=' LE
+    %left '<'
+    %left '+' '-'
+    %left '*' '/'
+    %left ISVOID
+    %left '~'
+    %left '@'
+    %left '.'
+    %right THEN ELSE
+    %right LOOP POOL
     
     %%
     /* 
@@ -246,6 +258,22 @@
         } 
     ;
 
+    expression_arg_list :
+        { 
+          $$ = nil_Expressions();       /* no args */
+        } 
+      |
+        expression			/* single arg */
+        { 
+          $$ = single_Expressions($1); 
+        }
+      |
+        expression_arg_list ',' expression /* several args */
+        { 
+          $$ = append_Expressions($1,single_Expressions($3)); 
+        } 
+    ;
+
    expression	: 
         OBJECTID ASSIGN expression
         { 
@@ -332,9 +360,24 @@
           $$ = let($2, $4, no_expr(), $6);
         }
       |
-        CASE expression OF case_list
+        CASE expression OF case_list ESAC
         {
           $$ = typcase($2, $4);
+        }
+      |
+        expression '@' TYPEID '.' OBJECTID '(' expression_arg_list ')'
+        {
+          $$ = static_dispatch($1, $3, $5, $7);
+        }
+      |
+        OBJECTID '(' expression_arg_list ')'
+        {
+          $$ = dispatch(object(idtable.add_string("Self")), $1, $3);
+        }
+      |
+        expression '.' OBJECTID '(' expression_arg_list ')'
+        {
+          $$ = dispatch($1, $3, $5);
         }
       |
         NEW TYPEID
@@ -381,16 +424,7 @@
           $$ = branch($1, $3, $5);
         }
     ;
- 
-
-/*
-expr ::= 
-  | expr[@TYPE].ID( [ expr [[, expr]]∗  ] )
-  | ID( [ expr [[, expr]]∗  ] )
-  | let ID : TYPE [ <- expr ] [[,ID : TYPE [ <- expr ]]]∗ in expr
-  | case expr of [[ID : TYPE => expr; ]]+esac
-*/
-    
+     
     /* end of grammar */
     %%
     
