@@ -297,8 +297,6 @@
           $$ = let($1, $3, no_expr(), no_expr());
         }
 
-/*let ID : TYPE [ <- expr ] [[,ID : TYPE [ <- expr ]]]∗ in expr*/
-
    expression	: 
         OBJECTID ASSIGN expression
         { 
@@ -374,20 +372,26 @@
         {
           $$ = cond($2, $4, $6);
         }
-      /*  let ID : TYPE [ <- expr ] [[,ID : TYPE [ <- expr ]]]∗ in expr*/
       |
         LET let_expr_list IN expression
         {
-          let_class* ptr_res = (let_class*) $2->nth($2->len() - 1);
-          ptr_res->setNext($4);
-          for(int i = $2->len() - 2; i >= 0; i-- )
+          /*
+            The idea here is that in I introduced new method in let_class : setNext.
+            I collect all nested variable declarations (separated by comma) in a list.
+            But the problem is that they were created with no_expr() as 4th (body) parameter.
+            So I need to fix this using setNext method. I'm doing this in the cycle below:
+          */
+          let_class* first = (let_class*) $2->nth($2->first());
+          let_class* ptr = first;
+          for(int i = $2->more($2->first()); i < $2->len(); i++ ) /* starting from the second element */
           {
-            let_class* temp = (let_class*) $2->nth(i);
-            temp->setNext(ptr_res);
-            ptr_res = temp;
-          }
-          
-          $$ = ptr_res;
+            let_class* next = (let_class*) $2->nth(i);
+            ptr->setNext(next);
+            ptr = next;
+          } 
+          ptr->setNext($4);
+
+          $$ = first;
         }       
       |
         LET OBJECTID ':' TYPEID ASSIGN expression IN expression
