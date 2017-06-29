@@ -176,51 +176,72 @@
         { 
           $$ = append_Classes($1,single_Classes($2)); 
           parse_results = $$; 
-        } ;
+        } 
+      | 
+        class_list error ';'
+    ;
     
     /* If no parent is specified, the class inherits from the Object class. */
     class	 :
-      CLASS TYPEID '{' feature_list '}' ';'
+        CLASS TYPEID '{' feature_list '}' ';'
         { 
           $$ = class_($2, idtable.add_string("Object"), $4, stringtable.add_string(curr_filename)); 
         }
       | 
-      CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
+        CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
         { 
           $$ = class_($2, $4, $6, stringtable.add_string(curr_filename)); 
         }
+      | 
+        CLASS error ';'
+      | 
+        class error ';'
     ;
     
     /* Feature list may be empty, but no empty features in list. */
     feature_list:
-        feature			
+        {  
+          $$ = nil_Features(); 
+        }
+      |
+        feature ';'
         { 
           $$ = single_Features($1);
         }
       | 
-        feature_list feature	
+        feature_list feature ';'
         { 
           $$ = append_Features($1,single_Features($2)); 
         } 
-      |
-        {  $$ = nil_Features(); } 
+      | 
+        feature_list error ';'
+        { yyerrok;                  }
+      | 
+        error ';'
+        { yyerrok;                  }
     ;
 
     feature	: 
-        OBJECTID '(' formal_list ')' ':' TYPEID '{' expression '}' ';'
+        OBJECTID '(' formal_list ')' ':' TYPEID '{' expression '}'
         { 
           $$ = method($1, $3, $6, $8);
         }
       | 
-        OBJECTID ':' TYPEID DARROW expression ';'
+        OBJECTID ':' TYPEID ASSIGN expression
         {
           $$ = attr($1, $3, $5);
         }
       |
-        OBJECTID ':' TYPEID ';' 
+        OBJECTID ':' TYPEID
         { 
           $$ = attr($1, $3, no_expr());
         }
+      |
+        feature error '\n'
+        { yyerrok;                  }
+      | 
+        error '\n'
+        { yyerrok;                  }
     ;
     
     formal_list :
@@ -237,6 +258,8 @@
         { 
           $$ = append_Formals($1,single_Formals($3)); 
         } 
+      | 
+        formal_list error ')'
     ;
     
    formal	: 
@@ -244,6 +267,8 @@
         { 
           $$ = formal($1, $3);
         }
+      | 
+        formal error ')'
     ;
 
     expression_list :
@@ -256,6 +281,8 @@
         { 
           $$ = append_Expressions($1,single_Expressions($2)); 
         } 
+      | 
+        expression_list error ';'
     ;
 
     expression_arg_list :
@@ -272,6 +299,8 @@
         { 
           $$ = append_Expressions($1,single_Expressions($3)); 
         } 
+      | 
+        expression_arg_list error ';'
     ;
 
     let_expr_list :
@@ -284,6 +313,8 @@
         { 
           $$ = append_Expressions($1,single_Expressions($3)); 
         } 
+      |
+        let_expr_list error '\n'
     ; 
 
    let_expr:
@@ -368,6 +399,18 @@
           $$ = loop($2, $4);
         }
       |
+        WHILE expression LOOP expression error '\n'
+        { yyerrok;                  }
+      |
+        WHILE expression LOOP error '\n'
+        { yyerrok;                  }
+      |
+        WHILE expression error '\n'
+        { yyerrok;                  }
+      |
+        WHILE error '\n'
+        { yyerrok;                  }
+      |
         IF expression THEN expression ELSE expression FI
         {
           $$ = cond($2, $4, $6);
@@ -448,6 +491,12 @@
         {
           $$ = object($1);
         }
+      | 
+        expression error '\n'
+        { yyerrok;                  }
+      | 
+        '{' error '}'
+        { yyerrok;                  }
     ;
 
     case_list : 
@@ -460,6 +509,8 @@
         { 
           $$ = append_Cases($1,single_Cases($2)); 
         } 
+      | 
+        case_list error ESAC
     ;
 
     case    : 
@@ -467,6 +518,8 @@
         { 
           $$ = branch($1, $3, $5);
         }
+      | 
+        case error ESAC
     ;
      
     /* end of grammar */
