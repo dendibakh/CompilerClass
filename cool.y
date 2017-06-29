@@ -139,8 +139,8 @@
     %type <feature> feature
     %type <formals> formal_list
     %type <formal> formal
-    %type <expressions> expression_list expression_arg_list
-    %type <expression> expression
+    %type <expressions> expression_list expression_arg_list let_expr_list
+    %type <expression> expression let_expr
     %type <cases> case_list
     %type <case_> case
 
@@ -274,6 +274,31 @@
         } 
     ;
 
+    let_expr_list :
+        let_expr			/* single arg */
+        { 
+          $$ = single_Expressions($1); 
+        }
+      |
+        let_expr_list ',' let_expr /* several args */
+        { 
+          $$ = append_Expressions($1,single_Expressions($3)); 
+        } 
+    ; 
+
+   let_expr:
+        OBJECTID ':' TYPEID ASSIGN expression
+        {
+          $$ = let($1, $3, $5, no_expr());
+        }
+      |
+        OBJECTID ':' TYPEID
+        {
+          $$ = let($1, $3, no_expr(), no_expr());
+        }
+
+/*let ID : TYPE [ <- expr ] [[,ID : TYPE [ <- expr ]]]∗ in expr*/
+
    expression	: 
         OBJECTID ASSIGN expression
         { 
@@ -349,6 +374,21 @@
         {
           $$ = cond($2, $4, $6);
         }
+      /*  let ID : TYPE [ <- expr ] [[,ID : TYPE [ <- expr ]]]∗ in expr*/
+      |
+        LET let_expr_list IN expression
+        {
+          let_class* ptr_res = (let_class*) $2->nth($2->len() - 1);
+          ptr_res->setNext($4);
+          for(int i = $2->len() - 2; i >= 0; i-- )
+          {
+            let_class* temp = (let_class*) $2->nth(i);
+            temp->setNext(ptr_res);
+            ptr_res = temp;
+          }
+          
+          $$ = ptr_res;
+        }       
       |
         LET OBJECTID ':' TYPEID ASSIGN expression IN expression
         {
