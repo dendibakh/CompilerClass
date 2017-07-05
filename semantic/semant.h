@@ -55,6 +55,9 @@ class ClassTable
   void check_no_expr(no_expr_class* expr, class__class* class_ptr);
   void check_object(object_class* expr, class__class* class_ptr);
 
+  bool isAsubtypeofB(Symbol a, Symbol b);
+  void test_isAsubtypeofB();
+
 public:
   ClassTable(Classes);
   int errors() { return semant_errors; }

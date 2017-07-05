@@ -140,7 +140,7 @@ void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 	if (!symTab.lookup(attr_ptr->type_decl))
 		semant_error(class_ptr) << endl;
 
-	if (attr_ptr->name->equal_string("self", 4))
+	if (attr_ptr->name == self)
 		semant_error(class_ptr) << endl;
 
 	checkExpression(attr_ptr->init, class_ptr);
@@ -384,6 +384,79 @@ void ClassTable::check_object(object_class* expr, class__class* class_ptr)
 {
 }
 
+bool ClassTable::isAsubtypeofB(Symbol a, Symbol b)
+{
+	if (a == b)
+		return true;
+
+	// Object is not a subType of any other class
+	if (a == Object)
+		return false;
+
+	Class_ A = *symTab.lookup(a);
+	Class_ B = *symTab.lookup(b);
+
+	if (!A || !B)
+	{
+		cerr << "isAsubtypeofB - symbols were not found." << endl;
+		return false;
+	}
+
+	class__class* a_ptr = dynamic_cast<class__class*>(A);
+	class__class* b_ptr = dynamic_cast<class__class*>(B);
+
+	if (!a_ptr || !b_ptr)
+	{
+		cerr << "isAsubtypeofB - pointers were not casted." << endl;
+		return false;
+	}
+
+	while (a_ptr->parent != b_ptr->name && a_ptr->parent != Object)
+	{
+		A = *symTab.lookup(a_ptr->parent);
+		if (!A)
+		{
+			cerr << "isAsubtypeofB - parent were not found." << endl;
+			return false;
+		}
+
+		a_ptr = dynamic_cast<class__class*>(A);
+		if (!a_ptr)
+		{
+			cerr << "isAsubtypeofB - parent was not casted." << endl;
+			return false;
+		}
+	}
+	
+	if (a_ptr->parent == b_ptr->name)
+		return true;
+
+	return false;
+}
+
+void ClassTable::test_isAsubtypeofB()
+{
+  Symbol Base = idtable.add_string("Base");
+  Symbol Der1 = idtable.add_string("Der1");
+  Symbol Der2 = idtable.add_string("Der2");
+  Symbol Der3 = idtable.add_string("Der3");
+  Symbol A = idtable.add_string("A");
+
+  cerr << "isAsubtypeofB(IO, Object) - " << isAsubtypeofB(IO, Object) << endl;
+  cerr << "isAsubtypeofB(Object, IO) - " << isAsubtypeofB(Object, IO) << endl;
+  cerr << "isAsubtypeofB(IO, IO) - " << isAsubtypeofB(IO, IO) << endl;
+  cerr << "isAsubtypeofB(Object, Object) - " << isAsubtypeofB(Object, Object) << endl;
+
+  cerr << "isAsubtypeofB(Base, Object) - " << isAsubtypeofB(Base, Object) << endl;
+  cerr << "isAsubtypeofB(Der1, Base) - " << isAsubtypeofB(Der1, Base) << endl;
+  cerr << "isAsubtypeofB(Base, Der1) - " << isAsubtypeofB(Base, Der1) << endl;
+
+  cerr << "isAsubtypeofB(Der2, Base) - " << isAsubtypeofB(Der2, Base) << endl;
+  cerr << "isAsubtypeofB(Der2, Object) - " << isAsubtypeofB(Der2, Object) << endl;
+
+  cerr << "isAsubtypeofB(Der2, Der3) - " << isAsubtypeofB(Der2, Der3) << endl;
+}
+
 void ClassTable::install_basic_classes() {
 
     // The tree package uses these globals to annotate the classes built below.
@@ -484,11 +557,11 @@ void ClassTable::install_basic_classes() {
 						      no_expr()))),
 	       filename);
 
-    symTab.addid(Object, &Object_class);
-    symTab.addid(IO, &IO_class);
-    symTab.addid(Int, &Int_class);
-    symTab.addid(Bool, &Bool_class);
-    symTab.addid(Str, &Str_class);
+    symTab.addid(Object, new Class_(Object_class));
+    symTab.addid(IO, new Class_(IO_class));
+    symTab.addid(Int, new Class_(Int_class));
+    symTab.addid(Bool, new Class_(Bool_class));
+    symTab.addid(Str, new Class_(Str_class));
 }
 
 ////////////////////////////////////////////////////////////////////
