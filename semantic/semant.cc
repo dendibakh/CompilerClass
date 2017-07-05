@@ -5,7 +5,8 @@
 #include <stdarg.h>
 #include "semant.h"
 #include "utilities.h"
-
+#include <set>
+#include <string>
 
 extern int semant_debug;
 extern char *curr_filename;
@@ -163,9 +164,26 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 			checkFormal(formal_ptr, class_ptr);
 	}
 
-	// check formals for duplicate paraemter names
+	checkDupFormals(meth_ptr, class_ptr);
 
 	checkExpression(meth_ptr->expr, class_ptr);
+}
+
+void ClassTable::checkDupFormals(method_class* meth_ptr, class__class* class_ptr)
+{
+	std::set<std::string> tab;
+	
+	for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
+  	{
+		formal_class* formal_ptr = dynamic_cast<formal_class*>(meth_ptr->formals->nth(i));
+		if (formal_ptr)
+		{
+			if (tab.find(formal_ptr->name->get_string()) == tab.end())
+				tab.insert(formal_ptr->name->get_string());
+			else
+				semant_error(class_ptr) << endl;
+		}	
+	}
 }
 
 void ClassTable::checkFormal(formal_class* formal_ptr, class__class* class_ptr)

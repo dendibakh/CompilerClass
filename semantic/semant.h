@@ -28,6 +28,9 @@ class ClassTable
   void checkAttribute(attr_class* attr_ptr, class__class* class_ptr);
   void checkMethod(method_class* meth_ptr, class__class* class_ptr);
   void checkFormal(formal_class* formal_ptr, class__class* class_ptr);
+
+  void checkDupFormals(method_class* meth_ptr, class__class* class_ptr);
+
   void checkExpression(Expression expr_ptr, class__class* class_ptr);
 
   void check_assign(assign_class* expr, class__class* class_ptr);
