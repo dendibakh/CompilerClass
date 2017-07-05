@@ -96,7 +96,7 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr)
   {
 	class__class* class_ptr = (class__class*)classes->nth(i);
 	checkClass(class_ptr);
-	checkClassFeatures(class_ptr->features);
+	checkClassFeatures(class_ptr->features, class_ptr);
   }
 }
 
@@ -116,50 +116,50 @@ void ClassTable::checkClass(class__class* class_ptr)
 		semant_error(class_ptr) << endl;
 }
 
-void ClassTable::checkClassFeatures(Features features)
+void ClassTable::checkClassFeatures(Features features, class__class* class_ptr)
 {
 	for(int i = features->first(); features->more(i); i = features->next(i))
   	{
 		attr_class* attr_ptr = dynamic_cast<attr_class*>(features->nth(i));
 		if (attr_ptr)
 		{
-			checkAttribute(attr_ptr);
+			checkAttribute(attr_ptr, class_ptr);
 		}
 		else
 		{
 			method_class* meth_ptr = dynamic_cast<method_class*>(features->nth(i));
 			if (meth_ptr)
-				checkMethod(meth_ptr);
+				checkMethod(meth_ptr, class_ptr);
 		}		
 	}
 }
 
-void ClassTable::checkAttribute(attr_class* attr_ptr)
+void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 {
 	//cout << "attribute : " << attr_ptr->name << endl;
 	if (!symTab.lookup(attr_ptr->type_decl))
-		semant_error(attr_ptr->name, attr_ptr) << endl;
+		semant_error(class_ptr) << endl;
 
 	if (attr_ptr->name->equal_string("self", 4))
-		semant_error(attr_ptr->name, attr_ptr) << endl;
+		semant_error(class_ptr) << endl;
 }
 
-void ClassTable::checkMethod(method_class* meth_ptr)
+void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 {
 	//cout << "method : " << meth_ptr->name << endl;
 	for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
   	{
 		formal_class* formal_ptr = dynamic_cast<formal_class*>(meth_ptr->formals->nth(i));
 		if (formal_ptr)
-			checkFormal(formal_ptr);
+			checkFormal(formal_ptr, class_ptr);
 	}
 }
 
-void ClassTable::checkFormal(formal_class* formal_ptr)
+void ClassTable::checkFormal(formal_class* formal_ptr, class__class* class_ptr)
 {
 	//cout << "formal : " << formal_ptr->name << endl;
 	if (!symTab.lookup(formal_ptr->type_decl))
-		semant_error(formal_ptr->name, formal_ptr) << endl;
+		semant_error(class_ptr) << endl;
 }
 
 void ClassTable::install_basic_classes() {
