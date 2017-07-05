@@ -28,6 +28,32 @@ class ClassTable
   void checkAttribute(attr_class* attr_ptr, class__class* class_ptr);
   void checkMethod(method_class* meth_ptr, class__class* class_ptr);
   void checkFormal(formal_class* formal_ptr, class__class* class_ptr);
+  void checkExpression(Expression expr_ptr, class__class* class_ptr);
+
+  void check_assign(assign_class* expr, class__class* class_ptr);
+  void check_static_dispatch(static_dispatch_class* expr, class__class* class_ptr);
+  void check_dispatch(dispatch_class* expr, class__class* class_ptr);
+  void check_cond(cond_class* expr, class__class* class_ptr);
+  void check_loop(loop_class* expr, class__class* class_ptr);
+  void check_typcase(typcase_class* expr, class__class* class_ptr);
+  void check_block(block_class* expr, class__class* class_ptr);
+  void check_let(let_class* expr, class__class* class_ptr);
+  void check_plus(plus_class* expr, class__class* class_ptr);
+  void check_sub(sub_class* expr, class__class* class_ptr);
+  void check_mul(mul_class* expr, class__class* class_ptrn);
+  void check_divide(divide_class* expr, class__class* class_ptr);
+  void check_neg(neg_class* expr, class__class* class_ptr);
+  void check_lt(lt_class* expr, class__class* class_ptr);
+  void check_eq(eq_class* expr, class__class* class_ptr);
+  void check_leq(leq_class* expr, class__class* class_ptr);
+  void check_comp(comp_class* expr, class__class* class_ptr);
+  void check_int_const(int_const_class* expr, class__class* class_ptr);
+  void check_bool_const(bool_const_class* expr, class__class* class_ptr);
+  void check_string_const(string_const_class* expr, class__class* class_ptr);
+  void check_new_(new__class* expr, class__class* class_ptr);
+  void check_isvoid(isvoid_class* expr, class__class* class_ptr);
+  void check_no_expr(no_expr_class* expr, class__class* class_ptr);
+  void check_object(object_class* expr, class__class* class_ptr);
 
 public:
   ClassTable(Classes);
