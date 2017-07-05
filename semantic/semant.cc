@@ -85,46 +85,81 @@ static void initialize_constants(void)
 
 ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) 
 {
-  symTab.enterscope();
-//  symTab.dump();
-  install_basic_classes();
 //  classes->dump(error_stream, 1);
-//  symTab.dump();
+
+  symTab.enterscope();
+  install_basic_classes();
+  install_user_classes(classes);
+  //symTab.dump();
+
+  for(int i = classes->first(); classes->more(i); i = classes->next(i))
+  {
+	class__class* class_ptr = (class__class*)classes->nth(i);
+	checkClass(class_ptr);
+	checkClassFeatures(class_ptr->features);
+  }
+}
+
+void ClassTable::install_user_classes(Classes classes)
+{
   for(int i = classes->first(); classes->more(i); i = classes->next(i))
   {
 	class__class* ptr = (class__class*)classes->nth(i);
 	Class_* pptr = new Class_(ptr); 
 	symTab.addid(ptr->name, pptr);
   }
-  //symTab.dump();
+}
 
-  for(int i = classes->first(); classes->more(i); i = classes->next(i))
-  {
-	class__class* ptr = (class__class*)classes->nth(i);
-	if (!symTab.lookup(ptr->parent))
-		semant_error(ptr);
-  }
-  
-  for(int i = classes->first(); classes->more(i); i = classes->next(i))
-  {
-	class__class* ptr = (class__class*)classes->nth(i);
-	Features features = ptr->features;
-	for(int j = features->first(); features->more(j); j = features->next(j))
+void ClassTable::checkClass(class__class* class_ptr)
+{
+	if (!symTab.lookup(class_ptr->parent))
+		semant_error(class_ptr) << endl;
+}
+
+void ClassTable::checkClassFeatures(Features features)
+{
+	for(int i = features->first(); features->more(i); i = features->next(i))
   	{
-		attr_class* attr_ptr = dynamic_cast<attr_class*>(features->nth(j));
+		attr_class* attr_ptr = dynamic_cast<attr_class*>(features->nth(i));
 		if (attr_ptr)
 		{
-			//cerr << "attribute : " << attr_ptr->name << endl;
-			if (!symTab.lookup(attr_ptr->type_decl))
-			{
-				semant_error(ptr);
-				//cerr << "error" << endl;
-			}
-			if (attr_ptr->name->equal_string("self", 4))
-				semant_error(ptr);
+			checkAttribute(attr_ptr);
 		}
+		else
+		{
+			method_class* meth_ptr = dynamic_cast<method_class*>(features->nth(i));
+			if (meth_ptr)
+				checkMethod(meth_ptr);
+		}		
 	}
-  }
+}
+
+void ClassTable::checkAttribute(attr_class* attr_ptr)
+{
+	//cout << "attribute : " << attr_ptr->name << endl;
+	if (!symTab.lookup(attr_ptr->type_decl))
+		semant_error(attr_ptr->name, attr_ptr) << endl;
+
+	if (attr_ptr->name->equal_string("self", 4))
+		semant_error(attr_ptr->name, attr_ptr) << endl;
+}
+
+void ClassTable::checkMethod(method_class* meth_ptr)
+{
+	//cout << "method : " << meth_ptr->name << endl;
+	for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
+  	{
+		formal_class* formal_ptr = dynamic_cast<formal_class*>(meth_ptr->formals->nth(i));
+		if (formal_ptr)
+			checkFormal(formal_ptr);
+	}
+}
+
+void ClassTable::checkFormal(formal_class* formal_ptr)
+{
+	//cout << "formal : " << formal_ptr->name << endl;
+	if (!symTab.lookup(formal_ptr->type_decl))
+		semant_error(formal_ptr->name, formal_ptr) << endl;
 }
 
 void ClassTable::install_basic_classes() {
