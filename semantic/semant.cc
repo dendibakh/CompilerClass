@@ -92,6 +92,9 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr)
   install_user_classes(classes);
   //symTab.dump();
 
+  if (!symTab.lookup(Main))
+	semant_error() << "Class Main is not defined." << endl;
+
   for(int i = classes->first(); classes->more(i); i = classes->next(i))
   {
 	class__class* class_ptr = (class__class*)classes->nth(i);
@@ -149,12 +152,20 @@ void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 {
 	//cout << "method : " << meth_ptr->name << endl;
+
+	if (!symTab.lookup(meth_ptr->return_type))
+		semant_error(class_ptr) << endl;
+
 	for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
   	{
 		formal_class* formal_ptr = dynamic_cast<formal_class*>(meth_ptr->formals->nth(i));
 		if (formal_ptr)
 			checkFormal(formal_ptr, class_ptr);
 	}
+
+	// check formals for duplicate paraemter names
+
+	checkExpression(meth_ptr->expr, class_ptr);
 }
 
 void ClassTable::checkFormal(formal_class* formal_ptr, class__class* class_ptr)
@@ -162,6 +173,15 @@ void ClassTable::checkFormal(formal_class* formal_ptr, class__class* class_ptr)
 	//cout << "formal : " << formal_ptr->name << endl;
 	if (!symTab.lookup(formal_ptr->type_decl))
 		semant_error(class_ptr) << endl;
+}
+
+void ClassTable::check_branch(branch_class* expr, class__class* class_ptr)
+{
+	//cout << "branch : " << branch_class->name << endl;
+	if (!symTab.lookup(expr->type_decl))
+		semant_error(class_ptr) << endl;
+
+	checkExpression(expr->expr, class_ptr);
 }
 
 void ClassTable::checkExpression(Expression expr_ptr, class__class* class_ptr)
@@ -310,6 +330,13 @@ void ClassTable::check_loop(loop_class* expr, class__class* class_ptr)
 
 void ClassTable::check_typcase(typcase_class* expr, class__class* class_ptr)
 {
+  checkExpression(expr->expr, class_ptr);
+
+  for(int i = expr->cases->first(); expr->cases->more(i); i = expr->cases->next(i))
+  {
+	branch_class* branch_ptr = (branch_class*)expr->cases->nth(i);
+	check_branch(branch_ptr, class_ptr);
+  }
 }
 
 void ClassTable::check_block(block_class* expr, class__class* class_ptr)
