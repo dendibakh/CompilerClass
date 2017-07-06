@@ -24,11 +24,14 @@ class ClassTable
   void install_basic_classes();
   void install_user_classes(Classes classes);
   void checkClass(class__class* class_ptr);
+
   void checkClassFeatures(Features features, class__class* class_ptr);
+  void collectClassAttributes(Features features);
   void checkAttribute(attr_class* attr_ptr, class__class* class_ptr);
   void checkMethod(method_class* meth_ptr, class__class* class_ptr);
-  void checkFormal(formal_class* formal_ptr, class__class* class_ptr);
 
+  void checkFormal(formal_class* formal_ptr, class__class* class_ptr);
+  void collectFormals(method_class* meth_ptr);
   void checkDupFormals(method_class* meth_ptr, class__class* class_ptr);
 
   void checkExpression(Expression expr_ptr, class__class* class_ptr);
@@ -73,7 +76,8 @@ public:
 private:
   int semant_errors;
   ostream& error_stream;
-  SymbolTable<Symbol, Class_> symTab;
+  SymbolTable<Symbol, Class_> types;
+  SymbolTable<Symbol, Symbol> vars;
 };
 
 

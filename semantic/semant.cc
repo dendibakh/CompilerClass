@@ -88,19 +88,22 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr)
 {
 //  classes->dump(error_stream, 1);
 
-  symTab.enterscope();
+  types.enterscope();
   install_basic_classes();
   install_user_classes(classes);
-  //symTab.dump();
+  //types.dump();
 
-  if (!symTab.lookup(Main))
+  if (!types.lookup(Main))
 	semant_error() << "Class Main is not defined." << endl;
 
   for(int i = classes->first(); classes->more(i); i = classes->next(i))
   {
+	vars.enterscope();
 	class__class* class_ptr = (class__class*)classes->nth(i);
 	checkClass(class_ptr);
+	collectClassAttributes(class_ptr->features);
 	checkClassFeatures(class_ptr->features, class_ptr);
+	vars.exitscope();
   }
 }
 
@@ -110,13 +113,13 @@ void ClassTable::install_user_classes(Classes classes)
   {
 	class__class* ptr = (class__class*)classes->nth(i);
 	Class_* pptr = new Class_(ptr); 
-	symTab.addid(ptr->name, pptr);
+	types.addid(ptr->name, pptr);
   }
 }
 
 void ClassTable::checkClass(class__class* class_ptr)
 {
-	if (!symTab.lookup(class_ptr->parent))
+	if (!types.lookup(class_ptr->parent))
 		semant_error(class_ptr) << endl;
 }
 
@@ -138,10 +141,20 @@ void ClassTable::checkClassFeatures(Features features, class__class* class_ptr)
 	}
 }
 
+void ClassTable::collectClassAttributes(Features features)
+{
+	for(int i = features->first(); features->more(i); i = features->next(i))
+  	{
+		attr_class* attr_ptr = dynamic_cast<attr_class*>(features->nth(i));
+		if (attr_ptr)
+			vars.addid(attr_ptr->name, &attr_ptr->type_decl);
+	}
+}
+
 void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 {
 	//cout << "attribute : " << attr_ptr->name << endl;
-	if (!symTab.lookup(attr_ptr->type_decl))
+	if (!types.lookup(attr_ptr->type_decl))
 		semant_error(class_ptr) << endl;
 
 	if (attr_ptr->name == self)
@@ -154,7 +167,7 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 {
 	//cout << "method : " << meth_ptr->name << endl;
 
-	if (!symTab.lookup(meth_ptr->return_type))
+	if (!types.lookup(meth_ptr->return_type))
 		semant_error(class_ptr) << endl;
 
 	for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
@@ -166,7 +179,10 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 
 	checkDupFormals(meth_ptr, class_ptr);
 
+	vars.enterscope();
+	collectFormals(meth_ptr);
 	checkExpression(meth_ptr->expr, class_ptr);
+	vars.exitscope();
 }
 
 void ClassTable::checkDupFormals(method_class* meth_ptr, class__class* class_ptr)
@@ -189,14 +205,24 @@ void ClassTable::checkDupFormals(method_class* meth_ptr, class__class* class_ptr
 void ClassTable::checkFormal(formal_class* formal_ptr, class__class* class_ptr)
 {
 	//cout << "formal : " << formal_ptr->name << endl;
-	if (!symTab.lookup(formal_ptr->type_decl))
+	if (!types.lookup(formal_ptr->type_decl))
 		semant_error(class_ptr) << endl;
+}
+
+void ClassTable::collectFormals(method_class* meth_ptr)
+{
+	for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
+  	{
+		formal_class* formal_ptr = dynamic_cast<formal_class*>(meth_ptr->formals->nth(i));
+		if (formal_ptr)
+			vars.addid(formal_ptr->name, &formal_ptr->type_decl);
+	}
 }
 
 void ClassTable::check_branch(branch_class* expr, class__class* class_ptr)
 {
 	//cout << "branch : " << branch_class->name << endl;
-	if (!symTab.lookup(expr->type_decl))
+	if (!types.lookup(expr->type_decl))
 		semant_error(class_ptr) << endl;
 
 	checkExpression(expr->expr, class_ptr);
@@ -383,6 +409,7 @@ void ClassTable::check_divide(divide_class* expr, class__class* class_ptr)
 
 void ClassTable::check_neg(neg_class* expr, class__class* class_ptr)
 {
+
 }
 
 void ClassTable::check_lt(lt_class* expr, class__class* class_ptr)
@@ -438,8 +465,8 @@ bool ClassTable::isAsubtypeofB(Symbol a, Symbol b)
 	if (a == Object)
 		return false;
 
-	Class_ A = *symTab.lookup(a);
-	Class_ B = *symTab.lookup(b);
+	Class_ A = *types.lookup(a);
+	Class_ B = *types.lookup(b);
 
 	if (!A || !B)
 	{
@@ -458,7 +485,7 @@ bool ClassTable::isAsubtypeofB(Symbol a, Symbol b)
 
 	while (a_ptr->parent != b_ptr->name && a_ptr->parent != Object)
 	{
-		A = *symTab.lookup(a_ptr->parent);
+		A = *types.lookup(a_ptr->parent);
 		if (!A)
 		{
 			cerr << "isAsubtypeofB - parent were not found." << endl;
@@ -602,11 +629,11 @@ void ClassTable::install_basic_classes() {
 						      no_expr()))),
 	       filename);
 
-    symTab.addid(Object, new Class_(Object_class));
-    symTab.addid(IO, new Class_(IO_class));
-    symTab.addid(Int, new Class_(Int_class));
-    symTab.addid(Bool, new Class_(Bool_class));
-    symTab.addid(Str, new Class_(Str_class));
+    types.addid(Object, new Class_(Object_class));
+    types.addid(IO, new Class_(IO_class));
+    types.addid(Int, new Class_(Int_class));
+    types.addid(Bool, new Class_(Bool_class));
+    types.addid(Str, new Class_(Str_class));
 }
 
 ////////////////////////////////////////////////////////////////////
