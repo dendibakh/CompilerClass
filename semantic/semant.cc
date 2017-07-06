@@ -384,6 +384,12 @@ void ClassTable::check_cond(cond_class* expr, class__class* class_ptr)
 
 void ClassTable::check_loop(loop_class* expr, class__class* class_ptr)
 {
+	checkExpression(expr->pred, class_ptr);
+	checkExpression(expr->body, class_ptr);		
+
+	Symbol T1 = getTypeOfExpression(expr->pred, class_ptr);
+	if (T1 != Bool)
+		semant_error(class_ptr) << endl;
 }
 
 void ClassTable::check_typcase(typcase_class* expr, class__class* class_ptr)
@@ -454,10 +460,13 @@ void ClassTable::check_string_const(string_const_class* expr, class__class* clas
 
 void ClassTable::check_new_(new__class* expr, class__class* class_ptr)
 {
+	if (!types.lookup(expr->type_name))
+		semant_error(class_ptr) << endl;
 }
 
 void ClassTable::check_isvoid(isvoid_class* expr, class__class* class_ptr)
 {
+	checkExpression(expr->e1, class_ptr);
 }
 
 void ClassTable::check_no_expr(no_expr_class* expr, class__class* class_ptr)
@@ -466,6 +475,8 @@ void ClassTable::check_no_expr(no_expr_class* expr, class__class* class_ptr)
 
 void ClassTable::check_object(object_class* expr, class__class* class_ptr)
 {
+	if (!vars.lookup(expr->name))
+		semant_error(class_ptr) << endl;
 }
 
 bool ClassTable::isAsubtypeofB(Symbol a, Symbol b)
@@ -563,11 +574,13 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 			check_cond(expr, class_ptr);
 	}
+*/
 	{
 		loop_class* expr = dynamic_cast<loop_class*>(expr_ptr);
 		if (expr)
-			check_loop(expr, class_ptr);
+			return Object;
 	}
+/*
 	{
 		typcase_class* expr = dynamic_cast<typcase_class*>(expr_ptr);
 		if (expr)
