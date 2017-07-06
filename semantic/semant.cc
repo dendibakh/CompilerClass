@@ -161,6 +161,7 @@ void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 		semant_error(class_ptr) << endl;
 
 	checkExpression(attr_ptr->init, class_ptr);
+	// check that type of the expression is equal to the type of attribute;
 }
 
 void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
@@ -182,6 +183,7 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 	vars.enterscope();
 	collectFormals(meth_ptr);
 	checkExpression(meth_ptr->expr, class_ptr);
+	// check that type of the expression is equal to return type;
 	vars.exitscope();
 }
 
@@ -273,22 +275,22 @@ void ClassTable::checkExpression(Expression expr_ptr, class__class* class_ptr)
 	{
 		plus_class* expr = dynamic_cast<plus_class*>(expr_ptr);
 		if (expr)
-			check_plus(expr, class_ptr);
+			checkArithmeticOrComparisonExpression(expr, class_ptr);
 	}
 	{
 		sub_class* expr = dynamic_cast<sub_class*>(expr_ptr);
 		if (expr)
-			check_sub(expr, class_ptr);
+			checkArithmeticOrComparisonExpression(expr, class_ptr);
 	}
 	{
 		mul_class* expr = dynamic_cast<mul_class*>(expr_ptr);
 		if (expr)
-			check_mul(expr, class_ptr);
+			checkArithmeticOrComparisonExpression(expr, class_ptr);
 	}
 	{
 		divide_class* expr = dynamic_cast<divide_class*>(expr_ptr);
 		if (expr)
-			check_divide(expr, class_ptr);
+			checkArithmeticOrComparisonExpression(expr, class_ptr);
 	}
 	{
 		neg_class* expr = dynamic_cast<neg_class*>(expr_ptr);
@@ -298,7 +300,7 @@ void ClassTable::checkExpression(Expression expr_ptr, class__class* class_ptr)
 	{
 		lt_class* expr = dynamic_cast<lt_class*>(expr_ptr);
 		if (expr)
-			check_lt(expr, class_ptr);
+			checkArithmeticOrComparisonExpression(expr, class_ptr);
 	}
 	{
 		eq_class* expr = dynamic_cast<eq_class*>(expr_ptr);
@@ -308,7 +310,7 @@ void ClassTable::checkExpression(Expression expr_ptr, class__class* class_ptr)
 	{
 		leq_class* expr = dynamic_cast<leq_class*>(expr_ptr);
 		if (expr)
-			check_leq(expr, class_ptr);
+			checkArithmeticOrComparisonExpression(expr, class_ptr);
 	}
 	{
 		comp_class* expr = dynamic_cast<comp_class*>(expr_ptr);
@@ -352,6 +354,18 @@ void ClassTable::checkExpression(Expression expr_ptr, class__class* class_ptr)
 	}
 }
 
+template <class T>
+void ClassTable::checkArithmeticOrComparisonExpression(T* expr, class__class* class_ptr)
+{
+	checkExpression(expr->e1, class_ptr);
+	checkExpression(expr->e2, class_ptr);
+
+	Symbol T1 = getTypeOfExpression(expr->e1, class_ptr);
+	Symbol T2 = getTypeOfExpression(expr->e2, class_ptr);
+	if (T1 != Int || T2 != Int)
+		semant_error(class_ptr) << endl;
+}
+
 void ClassTable::check_assign(assign_class* expr, class__class* class_ptr)
 {
 }
@@ -391,41 +405,39 @@ void ClassTable::check_let(let_class* expr, class__class* class_ptr)
 {
 }
 
-void ClassTable::check_plus(plus_class* expr, class__class* class_ptr)
-{
-}
-
-void ClassTable::check_sub(sub_class* expr, class__class* class_ptr)
-{
-}
-
-void ClassTable::check_mul(mul_class* expr, class__class* class_ptrn)
-{
-}
-
-void ClassTable::check_divide(divide_class* expr, class__class* class_ptr)
-{
-}
-
 void ClassTable::check_neg(neg_class* expr, class__class* class_ptr)
 {
+	checkExpression(expr->e1, class_ptr);
 
-}
-
-void ClassTable::check_lt(lt_class* expr, class__class* class_ptr)
-{
+	Symbol T1 = getTypeOfExpression(expr->e1, class_ptr);
+	if (T1 != Int)
+		semant_error(class_ptr) << endl;
 }
 
 void ClassTable::check_eq(eq_class* expr, class__class* class_ptr)
 {
-}
+	checkExpression(expr->e1, class_ptr);
+	checkExpression(expr->e2, class_ptr);
 
-void ClassTable::check_leq(leq_class* expr, class__class* class_ptr)
-{
+	Symbol T1 = getTypeOfExpression(expr->e1, class_ptr);
+	Symbol T2 = getTypeOfExpression(expr->e2, class_ptr);
+	if (T1 == Int && T2 != Int)
+		semant_error(class_ptr) << endl;
+
+	if (T1 == Bool && T2 != Bool)
+		semant_error(class_ptr) << endl;
+
+	if (T1 == Str && T2 != Str)
+		semant_error(class_ptr) << endl;
 }
 
 void ClassTable::check_comp(comp_class* expr, class__class* class_ptr)
 {
+	checkExpression(expr->e1, class_ptr);
+
+	Symbol T1 = getTypeOfExpression(expr->e1, class_ptr);
+	if (T1 != Bool)
+		semant_error(class_ptr) << endl;
 }
 
 void ClassTable::check_int_const(int_const_class* expr, class__class* class_ptr)
@@ -527,6 +539,132 @@ void ClassTable::test_isAsubtypeofB()
   cerr << "isAsubtypeofB(Der2, Object) - " << isAsubtypeofB(Der2, Object) << endl;
 
   cerr << "isAsubtypeofB(Der2, Der3) - " << isAsubtypeofB(Der2, Der3) << endl;
+}
+
+Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_ptr)
+{
+/*	{
+		assign_class* expr = dynamic_cast<assign_class*>(expr_ptr);
+		if (expr)
+			check_assign(expr, class_ptr);
+	}
+	{
+		static_dispatch_class* expr = dynamic_cast<static_dispatch_class*>(expr_ptr);
+		if (expr)
+			check_static_dispatch(expr, class_ptr);
+	}
+	{
+		dispatch_class* expr = dynamic_cast<dispatch_class*>(expr_ptr);
+		if (expr)
+			check_dispatch(expr, class_ptr);
+	}
+	{
+		cond_class* expr = dynamic_cast<cond_class*>(expr_ptr);
+		if (expr)
+			check_cond(expr, class_ptr);
+	}
+	{
+		loop_class* expr = dynamic_cast<loop_class*>(expr_ptr);
+		if (expr)
+			check_loop(expr, class_ptr);
+	}
+	{
+		typcase_class* expr = dynamic_cast<typcase_class*>(expr_ptr);
+		if (expr)
+			check_typcase(expr, class_ptr);
+	}
+	{
+		block_class* expr = dynamic_cast<block_class*>(expr_ptr);
+		if (expr)
+			check_block(expr, class_ptr);
+	}
+	{
+		let_class* expr = dynamic_cast<let_class*>(expr_ptr);
+		if (expr)
+			check_let(expr, class_ptr);
+	}
+*/
+	{
+		plus_class* expr = dynamic_cast<plus_class*>(expr_ptr);
+		if (expr)
+			return Int;
+	}
+	{
+		sub_class* expr = dynamic_cast<sub_class*>(expr_ptr);
+		if (expr)
+			return Int;
+	}
+	{
+		mul_class* expr = dynamic_cast<mul_class*>(expr_ptr);
+		if (expr)
+			return Int;
+	}
+	{
+		divide_class* expr = dynamic_cast<divide_class*>(expr_ptr);
+		if (expr)
+			return Int;
+	}
+	{
+		neg_class* expr = dynamic_cast<neg_class*>(expr_ptr);
+		if (expr)
+			return Int;
+	}
+	{
+		lt_class* expr = dynamic_cast<lt_class*>(expr_ptr);
+		if (expr)
+			return Bool;
+	}
+	{
+		eq_class* expr = dynamic_cast<eq_class*>(expr_ptr);
+		if (expr)
+			return Bool;
+	}
+	{
+		leq_class* expr = dynamic_cast<leq_class*>(expr_ptr);
+		if (expr)
+			return Bool;
+	}
+	{
+		comp_class* expr = dynamic_cast<comp_class*>(expr_ptr);
+		if (expr)
+			return Bool;
+	}
+	{
+		int_const_class* expr = dynamic_cast<int_const_class*>(expr_ptr);
+		if (expr)
+			return Int;
+	}
+	{
+		bool_const_class* expr = dynamic_cast<bool_const_class*>(expr_ptr);
+		if (expr)
+			return Bool;
+	}
+	{
+		string_const_class* expr = dynamic_cast<string_const_class*>(expr_ptr);
+		if (expr)
+			return Str;
+	}
+	{
+		new__class* expr = dynamic_cast<new__class*>(expr_ptr);
+		if (expr)
+			return expr->type_name;
+	}
+	{
+		isvoid_class* expr = dynamic_cast<isvoid_class*>(expr_ptr);
+		if (expr)
+			return Bool;
+	}
+/*	{
+		no_expr_class* expr = dynamic_cast<no_expr_class*>(expr_ptr);
+		if (expr)
+			check_no_expr(expr, class_ptr);
+	}*/
+	{
+		object_class* expr = dynamic_cast<object_class*>(expr_ptr);
+		if (expr)
+			return *vars.lookup(expr->name);
+	}
+	return Object;
 }
 
 void ClassTable::install_basic_classes() {

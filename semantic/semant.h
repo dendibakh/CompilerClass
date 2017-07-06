@@ -44,14 +44,8 @@ class ClassTable
   void check_typcase(typcase_class* expr, class__class* class_ptr);
   void check_block(block_class* expr, class__class* class_ptr);
   void check_let(let_class* expr, class__class* class_ptr);
-  void check_plus(plus_class* expr, class__class* class_ptr);
-  void check_sub(sub_class* expr, class__class* class_ptr);
-  void check_mul(mul_class* expr, class__class* class_ptrn);
-  void check_divide(divide_class* expr, class__class* class_ptr);
   void check_neg(neg_class* expr, class__class* class_ptr);
-  void check_lt(lt_class* expr, class__class* class_ptr);
   void check_eq(eq_class* expr, class__class* class_ptr);
-  void check_leq(leq_class* expr, class__class* class_ptr);
   void check_comp(comp_class* expr, class__class* class_ptr);
   void check_int_const(int_const_class* expr, class__class* class_ptr);
   void check_bool_const(bool_const_class* expr, class__class* class_ptr);
@@ -65,6 +59,11 @@ class ClassTable
 
   bool isAsubtypeofB(Symbol a, Symbol b);
   void test_isAsubtypeofB();
+
+  Symbol getTypeOfExpression(Expression expr, class__class* class_ptr);
+
+  template <class T>
+  void checkArithmeticOrComparisonExpression(T* expr, class__class* class_ptr);
 
 public:
   ClassTable(Classes);
