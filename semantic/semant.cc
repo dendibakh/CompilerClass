@@ -189,15 +189,15 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 
 void ClassTable::checkDupFormals(method_class* meth_ptr, class__class* class_ptr)
 {
-	std::set<std::string> tab;
+	std::set<Symbol> tab;
 	
 	for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
   	{
 		formal_class* formal_ptr = dynamic_cast<formal_class*>(meth_ptr->formals->nth(i));
 		if (formal_ptr)
 		{
-			if (tab.find(formal_ptr->name->get_string()) == tab.end())
-				tab.insert(formal_ptr->name->get_string());
+			if (tab.find(formal_ptr->name) == tab.end())
+				tab.insert(formal_ptr->name);
 			else
 				semant_error(class_ptr) << endl;
 		}	
@@ -380,6 +380,13 @@ void ClassTable::check_dispatch(dispatch_class* expr, class__class* class_ptr)
 
 void ClassTable::check_cond(cond_class* expr, class__class* class_ptr)
 {
+	checkExpression(expr->pred, class_ptr);
+	checkExpression(expr->then_exp, class_ptr);	
+	checkExpression(expr->else_exp, class_ptr);	
+
+	Symbol T1 = getTypeOfExpression(expr->pred, class_ptr);
+	if (T1 != Bool)
+		semant_error(class_ptr) << endl;
 }
 
 void ClassTable::check_loop(loop_class* expr, class__class* class_ptr)
@@ -552,6 +559,93 @@ void ClassTable::test_isAsubtypeofB()
   cerr << "isAsubtypeofB(Der2, Der3) - " << isAsubtypeofB(Der2, Der3) << endl;
 }
 
+Symbol ClassTable::findCommonAncestor(Symbol a, Symbol b)
+{
+	Class_ A = *types.lookup(a);
+	Class_ B = *types.lookup(b);
+
+	if (!A || !B)
+	{
+		cerr << "findCommonAncestor - symbols were not found." << endl;
+		return Object;
+	}
+
+	class__class* a_ptr = dynamic_cast<class__class*>(A);
+	class__class* b_ptr = dynamic_cast<class__class*>(B);
+
+	if (!a_ptr || !b_ptr)
+	{
+		cerr << "findCommonAncestor - pointers were not casted." << endl;
+		return Object;
+	}
+
+	std::set<Symbol> parentsOfA;
+
+	while (a_ptr->name != Object)
+	{
+		parentsOfA.insert(a_ptr->name);
+		A = *types.lookup(a_ptr->parent);
+		if (!A)
+		{
+			cerr << "findCommonAncestor - parent were not found." << endl;
+			return Object;
+		}
+
+		a_ptr = dynamic_cast<class__class*>(A);
+		if (!a_ptr)
+		{
+			cerr << "findCommonAncestor - parent was not casted." << endl;
+			return Object;
+		}
+	}
+
+	while (b_ptr->name != Object)
+	{
+		if (parentsOfA.find(b_ptr->name) != parentsOfA.end())
+			return b_ptr->name;
+		B = *types.lookup(b_ptr->parent);
+		if (!B)
+		{
+			cerr << "findCommonAncestor - parent were not found." << endl;
+			return Object;
+		}
+
+		b_ptr = dynamic_cast<class__class*>(B);
+		if (!b_ptr)
+		{
+			cerr << "findCommonAncestor - parent was not casted." << endl;
+			return Object;
+		}
+	}
+
+	return Object;
+}
+
+void ClassTable::test_findCommonAncestor()
+{
+  Symbol Base = idtable.add_string("Base");
+  Symbol Der1 = idtable.add_string("Der1");
+  Symbol Der2 = idtable.add_string("Der2");
+  Symbol Der3 = idtable.add_string("Der3");
+  Symbol A = idtable.add_string("A");
+
+  cerr << "findCommonAncestor(IO, Object) - " << findCommonAncestor(IO, Object) << endl;
+  cerr << "findCommonAncestor(Object, IO) - " << findCommonAncestor(Object, IO) << endl;
+  cerr << "findCommonAncestor(IO, IO) - " << findCommonAncestor(IO, IO) << endl;
+  cerr << "findCommonAncestor(Object, Object) - " << findCommonAncestor(Object, Object) << endl;
+
+  cerr << "findCommonAncestor(Base, Object) - " << findCommonAncestor(Base, Object) << endl;
+  cerr << "findCommonAncestor(Der1, Base) - " << findCommonAncestor(Der1, Base) << endl;
+  cerr << "findCommonAncestor(Base, Der1) - " << findCommonAncestor(Base, Der1) << endl;
+  cerr << "findCommonAncestor(Der2, Der1) - " << findCommonAncestor(Der2, Der1) << endl;
+  cerr << "findCommonAncestor(Der1, Der2) - " << findCommonAncestor(Der1, Der2) << endl;
+
+  cerr << "findCommonAncestor(Der2, Base) - " << findCommonAncestor(Der2, Base) << endl;
+  cerr << "findCommonAncestor(Der2, Object) - " << findCommonAncestor(Der2, Object) << endl;
+
+  cerr << "findCommonAncestor(Der2, Der3) - " << findCommonAncestor(Der2, Der3) << endl;
+}
+
 Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_ptr)
 {
 /*	{
@@ -569,12 +663,12 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 			check_dispatch(expr, class_ptr);
 	}
+*/
 	{
 		cond_class* expr = dynamic_cast<cond_class*>(expr_ptr);
 		if (expr)
-			check_cond(expr, class_ptr);
+			return findCommonAncestor(getTypeOfExpression(expr->then_exp, class_ptr), getTypeOfExpression(expr->else_exp, class_ptr));
 	}
-*/
 	{
 		loop_class* expr = dynamic_cast<loop_class*>(expr_ptr);
 		if (expr)

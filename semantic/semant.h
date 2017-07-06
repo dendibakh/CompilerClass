@@ -60,6 +60,9 @@ class ClassTable
   bool isAsubtypeofB(Symbol a, Symbol b);
   void test_isAsubtypeofB();
 
+  Symbol findCommonAncestor(Symbol a, Symbol b);
+  void test_findCommonAncestor();
+
   Symbol getTypeOfExpression(Expression expr, class__class* class_ptr);
 
   template <class T>
