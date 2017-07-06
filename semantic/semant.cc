@@ -368,6 +368,18 @@ void ClassTable::checkArithmeticOrComparisonExpression(T* expr, class__class* cl
 
 void ClassTable::check_assign(assign_class* expr, class__class* class_ptr)
 {
+	Symbol* IdType = vars.lookup(expr->name);
+	if (!IdType)
+	{
+		semant_error(class_ptr) << endl;
+	}
+	else
+	{
+		Symbol T1 = getTypeOfExpression(expr->expr, class_ptr);
+		if (!isAsubtypeofB(T1, *IdType))
+			semant_error(class_ptr) << endl;
+	}
+
 }
 
 void ClassTable::check_static_dispatch(static_dispatch_class* expr, class__class* class_ptr)
@@ -648,12 +660,12 @@ void ClassTable::test_findCommonAncestor()
 
 Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_ptr)
 {
-/*	{
+	{
 		assign_class* expr = dynamic_cast<assign_class*>(expr_ptr);
 		if (expr)
-			check_assign(expr, class_ptr);
+			return getTypeOfExpression(expr->expr, class_ptr);
 	}
-	{
+/*	{
 		static_dispatch_class* expr = dynamic_cast<static_dispatch_class*>(expr_ptr);
 		if (expr)
 			check_static_dispatch(expr, class_ptr);
