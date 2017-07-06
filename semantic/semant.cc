@@ -424,6 +424,10 @@ void ClassTable::check_typcase(typcase_class* expr, class__class* class_ptr)
 
 void ClassTable::check_block(block_class* expr, class__class* class_ptr)
 {
+  for(int i = expr->body->first(); expr->body->more(i); i = expr->body->next(i))
+  {
+	checkExpression(expr->body->nth(i), class_ptr);
+  }
 }
 
 void ClassTable::check_let(let_class* expr, class__class* class_ptr)
@@ -692,12 +696,13 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 			check_typcase(expr, class_ptr);
 	}
+*/
 	{
 		block_class* expr = dynamic_cast<block_class*>(expr_ptr);
 		if (expr)
-			check_block(expr, class_ptr);
+			return getTypeOfExpression(expr->body->nth(expr->body->len() - 1), class_ptr);
 	}
-	{
+/*	{
 		let_class* expr = dynamic_cast<let_class*>(expr_ptr);
 		if (expr)
 			check_let(expr, class_ptr);

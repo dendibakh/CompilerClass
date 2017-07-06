@@ -409,7 +409,7 @@ public:
 
 // define constructor - block
 class block_class : public Expression_class {
-protected:
+public:
    Expressions body;
 public:
    block_class(Expressions a1) {
