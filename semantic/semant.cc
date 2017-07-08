@@ -520,6 +520,19 @@ void ClassTable::check_block(block_class* expr, class__class* class_ptr)
 
 void ClassTable::check_let(let_class* expr, class__class* class_ptr)
 {
+	checkExpression(expr->init, class_ptr);
+	if (!types.lookup(expr->type_decl))
+		semant_error(class_ptr) << endl;
+	
+	if (!isAsubtypeofB(getTypeOfExpression(expr->init, class_ptr), expr->type_decl))
+		semant_error(class_ptr) << endl;
+	
+	vars.enterscope();
+
+	vars.addid(expr->identifier, &expr->type_decl);
+	checkExpression(expr->body, class_ptr);
+
+	vars.exitscope();
 }
 
 void ClassTable::check_neg(neg_class* expr, class__class* class_ptr)
@@ -795,12 +808,11 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 			return getTypeOfExpression(expr->body->nth(expr->body->len() - 1), class_ptr);
 	}
-/*	{
+	{
 		let_class* expr = dynamic_cast<let_class*>(expr_ptr);
 		if (expr)
-			check_let(expr, class_ptr);
+			return getTypeOfExpression(expr->body, class_ptr);
 	}
-*/
 	{
 		plus_class* expr = dynamic_cast<plus_class*>(expr_ptr);
 		if (expr)
@@ -879,7 +891,11 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 	{
 		object_class* expr = dynamic_cast<object_class*>(expr_ptr);
 		if (expr)
-			return *vars.lookup(expr->name);
+		{
+			Symbol* T = vars.lookup(expr->name);
+			if (T)
+				return *T;
+		}
 	}
 	return Object;
 }
