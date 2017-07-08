@@ -65,9 +65,13 @@ class ClassTable
 
   Symbol getTypeOfExpression(Expression expr, class__class* class_ptr);
 
+  void checkAttrIsNotDefinedInParents(Symbol attr, class__class* class_ptr);
+
   bool checkMethodExist(class__class* cl, Symbol method);
   void checkMethodFormals(class__class* cl, Symbol method, Expressions exprs, class__class* class_ptr);
   Symbol getMethodReturnType(class__class* cl, Symbol method);
+
+  bool isExpressionNoOp(Expression expr_ptr);
 
   template <class T>
   void checkArithmeticOrComparisonExpression(T* expr, class__class* class_ptr);

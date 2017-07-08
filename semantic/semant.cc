@@ -169,22 +169,63 @@ void ClassTable::collectClassAttributes(Features features)
 
 void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 {
-	//cout << "attribute : " << attr_ptr->name << endl;
+	//cerr << "attribute : " << attr_ptr->name << endl;
 	if (!types.lookup(attr_ptr->type_decl))
 		semant_error(class_ptr) << endl;
 
 	if (attr_ptr->name == self)
 		semant_error(class_ptr) << endl;
 
+	checkAttrIsNotDefinedInParents(attr_ptr->name, class_ptr);
+
 	checkExpression(attr_ptr->init, class_ptr);
 
-	if (!isAsubtypeofB(getTypeOfExpression(attr_ptr->init, class_ptr), attr_ptr->type_decl))
+	if (!isExpressionNoOp(attr_ptr->init) && !isAsubtypeofB(getTypeOfExpression(attr_ptr->init, class_ptr), attr_ptr->type_decl))
 		semant_error(class_ptr) << endl;
+}
+
+void ClassTable::checkAttrIsNotDefinedInParents(Symbol attr, class__class* class_ptr)
+{
+	Class_ parent = *types.lookup(class_ptr->parent);
+
+	if (!parent)
+	{
+		cerr << "checkAttrIsNotDefinedInParents - symbol was not found." << endl;
+		return;
+	}
+
+	class__class* parent_ptr = dynamic_cast<class__class*>(parent);
+
+	while (parent_ptr->name != Object)
+	{
+		for(int i = parent_ptr->features->first(); parent_ptr->features->more(i); i = parent_ptr->features->next(i))
+	  	{
+			attr_class* attr_ptr = dynamic_cast<attr_class*>(parent_ptr->features->nth(i));
+			if (attr_ptr && attr_ptr->name == attr)
+			{
+				semant_error(class_ptr) << endl;
+				return;
+			}
+		}
+		parent = *types.lookup(parent_ptr->parent);
+		if (!parent)
+		{
+			cerr << "checkAttrIsNotDefinedInParents - parent was not found." << endl;
+			return;
+		}
+
+		parent_ptr = dynamic_cast<class__class*>(parent);
+		if (!parent_ptr)
+		{
+			cerr << "checkAttrIsNotDefinedInParents - parent was not casted." << endl;
+			return;
+		}
+	}
 }
 
 void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 {
-	//cout << "method : " << meth_ptr->name << endl;
+	//cerr << "method : " << meth_ptr->name << endl;
 
 	if (!types.lookup(meth_ptr->return_type))
 		semant_error(class_ptr) << endl;
@@ -405,7 +446,6 @@ void ClassTable::check_assign(assign_class* expr, class__class* class_ptr)
 		if (!isAsubtypeofB(T1, *IdType))
 			semant_error(class_ptr) << endl;
 	}
-
 }
 
 void ClassTable::check_static_dispatch(static_dispatch_class* expr, class__class* class_ptr)
@@ -524,7 +564,7 @@ void ClassTable::check_let(let_class* expr, class__class* class_ptr)
 	if (!types.lookup(expr->type_decl))
 		semant_error(class_ptr) << endl;
 	
-	if (!isAsubtypeofB(getTypeOfExpression(expr->init, class_ptr), expr->type_decl))
+	if (!isExpressionNoOp(expr->init) && !isAsubtypeofB(getTypeOfExpression(expr->init, class_ptr), expr->type_decl))
 		semant_error(class_ptr) << endl;
 	
 	vars.enterscope();
@@ -883,11 +923,6 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 			return Bool;
 	}
-/*	{
-		no_expr_class* expr = dynamic_cast<no_expr_class*>(expr_ptr);
-		if (expr)
-			check_no_expr(expr, class_ptr);
-	}*/
 	{
 		object_class* expr = dynamic_cast<object_class*>(expr_ptr);
 		if (expr)
@@ -895,9 +930,16 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 			Symbol* T = vars.lookup(expr->name);
 			if (T)
 				return *T;
+			else
+				return Object;
 		}
 	}
 	return Object;
+}
+
+bool ClassTable::isExpressionNoOp(Expression expr_ptr)
+{
+	return dynamic_cast<no_expr_class*>(expr_ptr);
 }
 
 void ClassTable::install_basic_classes() {
