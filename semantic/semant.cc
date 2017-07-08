@@ -98,22 +98,29 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr)
 
   for(int i = classes->first(); classes->more(i); i = classes->next(i))
   {
+	class__class* class_ptr = dynamic_cast<class__class*>(classes->nth(i));	
+	
 	vars.enterscope();
-	class__class* class_ptr = (class__class*)classes->nth(i);
+
+	vars.addid(self, &class_ptr->name);
+	
 	checkClass(class_ptr);
 	collectClassAttributes(class_ptr->features);
 	checkClassFeatures(class_ptr->features, class_ptr);
+
 	vars.exitscope();
   }
+
+  types.exitscope();
 }
 
 void ClassTable::install_user_classes(Classes classes)
 {
   for(int i = classes->first(); classes->more(i); i = classes->next(i))
   {
-	class__class* ptr = (class__class*)classes->nth(i);
-	Class_* pptr = new Class_(ptr); 
-	types.addid(ptr->name, pptr);
+	class__class* class_ptr = dynamic_cast<class__class*>(classes->nth(i));	
+	Class_* pptr = new Class_(class_ptr); 
+	types.addid(class_ptr->name, pptr);
   }
 }
 
@@ -384,10 +391,68 @@ void ClassTable::check_assign(assign_class* expr, class__class* class_ptr)
 
 void ClassTable::check_static_dispatch(static_dispatch_class* expr, class__class* class_ptr)
 {
+	checkExpression(expr->expr, class_ptr);
+	Class_ T = *types.lookup(expr->type_name);
+	if (!checkMethodExist(dynamic_cast<class__class*>(T), expr->name))
+		semant_error(class_ptr) << endl;
+	
+	checkMethodFormals(dynamic_cast<class__class*>(T), expr->name, expr->actual, class_ptr);
 }
 
 void ClassTable::check_dispatch(dispatch_class* expr, class__class* class_ptr)
 {
+	checkExpression(expr->expr, class_ptr);
+	Class_ T = *types.lookup(getTypeOfExpression(expr->expr, class_ptr));
+	if (!checkMethodExist(dynamic_cast<class__class*>(T), expr->name))
+		semant_error(class_ptr) << endl;
+	
+	checkMethodFormals(dynamic_cast<class__class*>(T), expr->name, expr->actual, class_ptr);
+}
+
+bool ClassTable::checkMethodExist(class__class* cl, Symbol method)
+{
+	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
+  	{
+		method_class* meth_ptr = dynamic_cast<method_class*>(cl->features->nth(i));
+		if (meth_ptr && meth_ptr->name == method)
+			return true;
+	}
+	return false;
+}
+
+void ClassTable::checkMethodFormals(class__class* cl, Symbol method, Expressions exprs, class__class* class_ptr)
+{
+	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
+  	{
+		method_class* meth_ptr = dynamic_cast<method_class*>(cl->features->nth(i));
+		if (meth_ptr && meth_ptr->name == method)
+		{
+			if (meth_ptr->formals->len() != exprs->len())
+				semant_error(class_ptr) << endl;
+			
+			for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
+			{
+				Symbol T1 = (dynamic_cast<formal_class*>(meth_ptr->formals->nth(i)))->type_decl;
+				Symbol T2 = getTypeOfExpression(exprs->nth(i), class_ptr);
+				
+				if (!isAsubtypeofB(T2, T1))
+					semant_error(class_ptr) << endl;
+			}
+		}
+	}
+}
+
+Symbol ClassTable::getMethodReturnType(class__class* cl, Symbol method)
+{
+	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
+  	{
+		method_class* meth_ptr = dynamic_cast<method_class*>(cl->features->nth(i));
+		if (meth_ptr && meth_ptr->name == method)
+		{
+			return meth_ptr->return_type;
+		}
+	}
+	return Object;
 }
 
 void ClassTable::check_cond(cond_class* expr, class__class* class_ptr)
@@ -669,17 +734,28 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 			return getTypeOfExpression(expr->expr, class_ptr);
 	}
-/*	{
+	{
 		static_dispatch_class* expr = dynamic_cast<static_dispatch_class*>(expr_ptr);
 		if (expr)
-			check_static_dispatch(expr, class_ptr);
+		{
+			Class_ T = *types.lookup(expr->type_name);
+			Symbol retType = getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
+			if (retType == SELF_TYPE)
+				return expr->type_name;
+			return retType;
+		}
 	}
 	{
 		dispatch_class* expr = dynamic_cast<dispatch_class*>(expr_ptr);
 		if (expr)
-			check_dispatch(expr, class_ptr);
+		{
+			Class_ T = *types.lookup(getTypeOfExpression(expr->expr, class_ptr));
+			Symbol retType = getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
+			if (retType == SELF_TYPE)
+				return getTypeOfExpression(expr->expr, class_ptr);
+			return retType;
+		}
 	}
-*/
 	{
 		cond_class* expr = dynamic_cast<cond_class*>(expr_ptr);
 		if (expr)
