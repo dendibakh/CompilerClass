@@ -98,17 +98,21 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr)
 
   for(int i = classes->first(); classes->more(i); i = classes->next(i))
   {
-	class__class* class_ptr = dynamic_cast<class__class*>(classes->nth(i));	
+	Class__class* cl_ptr = classes->nth(i);
+	class__class* class_ptr = dynamic_cast<class__class*>(cl_ptr);	
 	
+	types.enterscope();
 	vars.enterscope();
 
 	vars.addid(self, &class_ptr->name);
+	types.addid(SELF_TYPE, &cl_ptr);
 	
 	checkClass(class_ptr);
 	collectClassAttributes(class_ptr->features);
 	checkClassFeatures(class_ptr->features, class_ptr);
 
 	vars.exitscope();
+	types.exitscope();
   }
 
   types.exitscope();
@@ -126,7 +130,12 @@ void ClassTable::install_user_classes(Classes classes)
 
 void ClassTable::checkClass(class__class* class_ptr)
 {
-	if (!types.lookup(class_ptr->parent))
+	if (class_ptr->name == Int || class_ptr->name == Bool || class_ptr->name == Str || class_ptr->name == SELF_TYPE)
+		semant_error(class_ptr) << endl;
+
+	if (class_ptr->parent == Int || class_ptr->parent == Bool || class_ptr->parent == Str || class_ptr->parent == SELF_TYPE)
+		semant_error(class_ptr) << endl;
+	else if (!types.lookup(class_ptr->parent))
 		semant_error(class_ptr) << endl;
 }
 
@@ -168,7 +177,9 @@ void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 		semant_error(class_ptr) << endl;
 
 	checkExpression(attr_ptr->init, class_ptr);
-	// check that type of the expression is equal to the type of attribute;
+
+	if (!isAsubtypeofB(getTypeOfExpression(attr_ptr->init, class_ptr), attr_ptr->type_decl))
+		semant_error(class_ptr) << endl;
 }
 
 void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
@@ -190,7 +201,10 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 	vars.enterscope();
 	collectFormals(meth_ptr);
 	checkExpression(meth_ptr->expr, class_ptr);
-	// check that type of the expression is equal to return type;
+
+	if (!isAsubtypeofB(getTypeOfExpression(meth_ptr->expr, class_ptr), meth_ptr->return_type))
+		semant_error(class_ptr) << endl;
+
 	vars.exitscope();
 }
 
@@ -214,7 +228,12 @@ void ClassTable::checkDupFormals(method_class* meth_ptr, class__class* class_ptr
 void ClassTable::checkFormal(formal_class* formal_ptr, class__class* class_ptr)
 {
 	//cout << "formal : " << formal_ptr->name << endl;
-	if (!types.lookup(formal_ptr->type_decl))
+	if (formal_ptr->name == self)
+		semant_error(class_ptr) << endl;
+
+	if (formal_ptr->type_decl == SELF_TYPE)
+		semant_error(class_ptr) << endl;
+	else if (!types.lookup(formal_ptr->type_decl))
 		semant_error(class_ptr) << endl;
 }
 
@@ -743,10 +762,7 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 		{
 			Class_ T = *types.lookup(expr->type_name);
-			Symbol retType = getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
-			if (retType == SELF_TYPE)
-				return expr->type_name;
-			return retType;
+			return getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
 		}
 	}
 	{
@@ -754,10 +770,7 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 		{
 			Class_ T = *types.lookup(getTypeOfExpression(expr->expr, class_ptr));
-			Symbol retType = getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
-			if (retType == SELF_TYPE)
-				return getTypeOfExpression(expr->expr, class_ptr);
-			return retType;
+			return getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
 		}
 	}
 	{
