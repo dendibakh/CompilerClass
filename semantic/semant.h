@@ -23,7 +23,7 @@ class ClassTable
 {
   void install_basic_classes();
   void install_user_classes(Classes classes);
-  void checkClass(class__class* class_ptr);
+  bool checkClass(class__class* class_ptr);
 
   void checkClassFeatures(Features features, class__class* class_ptr);
   void collectClassAttributes(Features features);
@@ -69,6 +69,8 @@ class ClassTable
 
   bool checkMethodExist(class__class* cl, Symbol method);
   void checkMethodFormals(class__class* cl, Symbol method, Expressions exprs, class__class* class_ptr);
+  void checkMethodOverride(class__class* class_ptr, method_class* meth_ptr);
+  bool compareOverridenSignatures(method_class* meth_ptr1, method_class* meth_ptr2);
   Symbol getMethodReturnType(class__class* cl, Symbol method);
 
   bool isExpressionNoOp(Expression expr_ptr);

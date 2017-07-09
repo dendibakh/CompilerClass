@@ -107,9 +107,11 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr)
 	vars.addid(self, &class_ptr->name);
 	types.addid(SELF_TYPE, &cl_ptr);
 	
-	checkClass(class_ptr);
-	collectClassAttributes(class_ptr->features);
-	checkClassFeatures(class_ptr->features, class_ptr);
+	if (checkClass(class_ptr))
+	{
+		collectClassAttributes(class_ptr->features);
+		checkClassFeatures(class_ptr->features, class_ptr);
+	}
 
 	vars.exitscope();
 	types.exitscope();
@@ -123,20 +125,38 @@ void ClassTable::install_user_classes(Classes classes)
   for(int i = classes->first(); classes->more(i); i = classes->next(i))
   {
 	class__class* class_ptr = dynamic_cast<class__class*>(classes->nth(i));	
-	Class_* pptr = new Class_(class_ptr); 
-	types.addid(class_ptr->name, pptr);
+	if (types.lookup(class_ptr->name))
+	{
+		semant_error(class_ptr) << endl;
+	}
+	else
+	{
+		Class_* pptr = new Class_(class_ptr); 
+		types.addid(class_ptr->name, pptr);
+	}
   }
 }
 
-void ClassTable::checkClass(class__class* class_ptr)
+bool ClassTable::checkClass(class__class* class_ptr)
 {
 	if (class_ptr->name == Int || class_ptr->name == Bool || class_ptr->name == Str || class_ptr->name == SELF_TYPE)
+	{
 		semant_error(class_ptr) << endl;
+		return false;
+	}
 
 	if (class_ptr->parent == Int || class_ptr->parent == Bool || class_ptr->parent == Str || class_ptr->parent == SELF_TYPE)
+	{
 		semant_error(class_ptr) << endl;
+		return false;
+	}
 	else if (!types.lookup(class_ptr->parent))
+	{
 		semant_error(class_ptr) << endl;
+		return false;
+	}
+
+	return true;
 }
 
 void ClassTable::checkClassFeatures(Features features, class__class* class_ptr)
@@ -186,6 +206,9 @@ void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 
 void ClassTable::checkAttrIsNotDefinedInParents(Symbol attr, class__class* class_ptr)
 {
+	if (class_ptr->parent == SELF_TYPE)
+		return;
+
 	Class_ parent = *types.lookup(class_ptr->parent);
 
 	if (!parent)
@@ -238,6 +261,8 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 	}
 
 	checkDupFormals(meth_ptr, class_ptr);
+
+	checkMethodOverride(class_ptr, meth_ptr);
 
 	vars.enterscope();
 	collectFormals(meth_ptr);
@@ -505,6 +530,71 @@ void ClassTable::checkMethodFormals(class__class* cl, Symbol method, Expressions
 	}
 }
 
+void ClassTable::checkMethodOverride(class__class* class_ptr, method_class* meth_ptr)
+{
+	if (class_ptr->parent == SELF_TYPE)
+		return;
+
+	Class_ parent = *types.lookup(class_ptr->parent);
+
+	if (!parent)
+	{
+		cerr << "checkMethodOverride - symbol was not found." << endl;
+		return;
+	}
+
+	class__class* parent_ptr = dynamic_cast<class__class*>(parent);
+
+	while (parent_ptr->name != Object)
+	{
+		for(int i = parent_ptr->features->first(); parent_ptr->features->more(i); i = parent_ptr->features->next(i))
+	  	{
+			method_class* meth_ptr2 = dynamic_cast<method_class*>(parent_ptr->features->nth(i));
+			if (meth_ptr2 && meth_ptr2->name == meth_ptr->name)
+			{
+				if (!compareOverridenSignatures(meth_ptr, meth_ptr2))
+				{	
+					semant_error(class_ptr) << endl;
+					return;
+				}
+			}
+		}
+		parent = *types.lookup(parent_ptr->parent);
+		if (!parent)
+		{
+			cerr << "checkMethodOverride - parent was not found." << endl;
+			return;
+		}
+
+		parent_ptr = dynamic_cast<class__class*>(parent);
+		if (!parent_ptr)
+		{
+			cerr << "checkMethodOverride - parent was not casted." << endl;
+			return;
+		}
+	}
+}
+
+bool ClassTable::compareOverridenSignatures(method_class* meth_ptr1, method_class* meth_ptr2)
+{
+	if (meth_ptr1->return_type != meth_ptr2->return_type)
+		return false;
+
+	if (meth_ptr1->formals->len() != meth_ptr2->formals->len())
+		return false;
+			
+	for(int i = meth_ptr1->formals->first(); meth_ptr1->formals->more(i); i = meth_ptr1->formals->next(i))
+	{
+		Symbol T1 = (dynamic_cast<formal_class*>(meth_ptr1->formals->nth(i)))->type_decl;
+		Symbol T2 = (dynamic_cast<formal_class*>(meth_ptr2->formals->nth(i)))->type_decl;
+		
+		if (T1 != T2)
+			return false;
+	}
+
+	return true;
+}
+
 Symbol ClassTable::getMethodReturnType(class__class* cl, Symbol method)
 {
 	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
@@ -567,6 +657,9 @@ void ClassTable::check_let(let_class* expr, class__class* class_ptr)
 	if (!isExpressionNoOp(expr->init) && !isAsubtypeofB(getTypeOfExpression(expr->init, class_ptr), expr->type_decl))
 		semant_error(class_ptr) << endl;
 	
+	if (expr->identifier == self)
+		semant_error(class_ptr) << endl;
+
 	vars.enterscope();
 
 	vars.addid(expr->identifier, &expr->type_decl);
