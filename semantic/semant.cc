@@ -199,6 +199,7 @@ void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 	checkAttrIsNotDefinedInParents(attr_ptr->name, class_ptr);
 
 	checkExpression(attr_ptr->init, class_ptr);
+	getTypeOfExpression(attr_ptr->init, class_ptr); // just for annotating the AST
 
 	if (!isExpressionNoOp(attr_ptr->init) && !isAsubtypeofB(getTypeOfExpression(attr_ptr->init, class_ptr), attr_ptr->type_decl))
 		semant_error(class_ptr) << endl;
@@ -320,6 +321,7 @@ void ClassTable::check_branch(branch_class* expr, class__class* class_ptr)
 		semant_error(class_ptr) << endl;
 
 	checkExpression(expr->expr, class_ptr);
+	getTypeOfExpression(expr->expr, class_ptr); // just for annotating the AST
 }
 
 void ClassTable::checkExpression(Expression expr_ptr, class__class* class_ptr)
@@ -597,6 +599,9 @@ void ClassTable::check_cond(cond_class* expr, class__class* class_ptr)
 	Symbol T1 = getTypeOfExpression(expr->pred, class_ptr);
 	if (T1 != Bool)
 		semant_error(class_ptr) << endl;
+
+	getTypeOfExpression(expr->then_exp, class_ptr); // just for annotating the AST
+	getTypeOfExpression(expr->else_exp, class_ptr); // just for annotating the AST
 }
 
 void ClassTable::check_loop(loop_class* expr, class__class* class_ptr)
@@ -607,11 +612,14 @@ void ClassTable::check_loop(loop_class* expr, class__class* class_ptr)
 	Symbol T1 = getTypeOfExpression(expr->pred, class_ptr);
 	if (T1 != Bool)
 		semant_error(class_ptr) << endl;
+
+	getTypeOfExpression(expr->body, class_ptr); // just for annotating the AST
 }
 
 void ClassTable::check_typcase(typcase_class* expr, class__class* class_ptr)
 {
   checkExpression(expr->expr, class_ptr);
+  getTypeOfExpression(expr->expr, class_ptr); // just for annotating the AST
 
   for(int i = expr->cases->first(); expr->cases->more(i); i = expr->cases->next(i))
   {
@@ -625,12 +633,15 @@ void ClassTable::check_block(block_class* expr, class__class* class_ptr)
   for(int i = expr->body->first(); expr->body->more(i); i = expr->body->next(i))
   {
 	checkExpression(expr->body->nth(i), class_ptr);
+	getTypeOfExpression(expr->body->nth(i), class_ptr); // just for annotating the AST
   }
 }
 
 void ClassTable::check_let(let_class* expr, class__class* class_ptr)
 {
 	checkExpression(expr->init, class_ptr);
+	getTypeOfExpression(expr->init, class_ptr); // just for annotating the AST
+
 	if (!types.lookup(expr->type_decl))
 		semant_error(class_ptr) << endl;
 	
@@ -644,6 +655,7 @@ void ClassTable::check_let(let_class* expr, class__class* class_ptr)
 
 	vars.addid(expr->identifier, &expr->type_decl);
 	checkExpression(expr->body, class_ptr);
+	getTypeOfExpression(expr->body, class_ptr); // just for annotating the AST
 
 	vars.exitscope();
 }
@@ -692,6 +704,7 @@ void ClassTable::check_new_(new__class* expr, class__class* class_ptr)
 void ClassTable::check_isvoid(isvoid_class* expr, class__class* class_ptr)
 {
 	checkExpression(expr->e1, class_ptr);
+	getTypeOfExpression(expr->e1, class_ptr); // just for annotating the AST
 }
 
 void ClassTable::check_object(object_class* expr, class__class* class_ptr)
@@ -1065,6 +1078,16 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 			if (!expr->type)
 				expr->type = Bool;
 			return Bool;
+		}
+	}
+	{
+		
+		no_expr_class* expr = dynamic_cast<no_expr_class*>(expr_ptr);
+		if (expr)
+		{
+			if (!expr->type)
+				expr->type = No_type;
+			return Object;
 		}
 	}
 	{
