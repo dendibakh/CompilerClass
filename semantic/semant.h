@@ -47,12 +47,9 @@ class ClassTable
   void check_neg(neg_class* expr, class__class* class_ptr);
   void check_eq(eq_class* expr, class__class* class_ptr);
   void check_comp(comp_class* expr, class__class* class_ptr);
-  void check_int_const(int_const_class* expr, class__class* class_ptr);
-  void check_bool_const(bool_const_class* expr, class__class* class_ptr);
-  void check_string_const(string_const_class* expr, class__class* class_ptr);
+
   void check_new_(new__class* expr, class__class* class_ptr);
   void check_isvoid(isvoid_class* expr, class__class* class_ptr);
-  void check_no_expr(no_expr_class* expr, class__class* class_ptr);
   void check_object(object_class* expr, class__class* class_ptr);
 
   void check_branch(branch_class* expr, class__class* class_ptr);

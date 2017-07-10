@@ -410,21 +410,6 @@ void ClassTable::checkExpression(Expression expr_ptr, class__class* class_ptr)
 			check_comp(expr, class_ptr);
 	}
 	{
-		int_const_class* expr = dynamic_cast<int_const_class*>(expr_ptr);
-		if (expr)
-			check_int_const(expr, class_ptr);
-	}
-	{
-		bool_const_class* expr = dynamic_cast<bool_const_class*>(expr_ptr);
-		if (expr)
-			check_bool_const(expr, class_ptr);
-	}
-	{
-		string_const_class* expr = dynamic_cast<string_const_class*>(expr_ptr);
-		if (expr)
-			check_string_const(expr, class_ptr);
-	}
-	{
 		new__class* expr = dynamic_cast<new__class*>(expr_ptr);
 		if (expr)
 			check_new_(expr, class_ptr);
@@ -433,11 +418,6 @@ void ClassTable::checkExpression(Expression expr_ptr, class__class* class_ptr)
 		isvoid_class* expr = dynamic_cast<isvoid_class*>(expr_ptr);
 		if (expr)
 			check_isvoid(expr, class_ptr);
-	}
-	{
-		no_expr_class* expr = dynamic_cast<no_expr_class*>(expr_ptr);
-		if (expr)
-			check_no_expr(expr, class_ptr);
 	}
 	{
 		object_class* expr = dynamic_cast<object_class*>(expr_ptr);
@@ -703,18 +683,6 @@ void ClassTable::check_comp(comp_class* expr, class__class* class_ptr)
 		semant_error(class_ptr) << endl;
 }
 
-void ClassTable::check_int_const(int_const_class* expr, class__class* class_ptr)
-{
-}
-
-void ClassTable::check_bool_const(bool_const_class* expr, class__class* class_ptr)
-{
-}
-
-void ClassTable::check_string_const(string_const_class* expr, class__class* class_ptr)
-{
-}
-
 void ClassTable::check_new_(new__class* expr, class__class* class_ptr)
 {
 	if (!types.lookup(expr->type_name))
@@ -724,10 +692,6 @@ void ClassTable::check_new_(new__class* expr, class__class* class_ptr)
 void ClassTable::check_isvoid(isvoid_class* expr, class__class* class_ptr)
 {
 	checkExpression(expr->e1, class_ptr);
-}
-
-void ClassTable::check_no_expr(no_expr_class* expr, class__class* class_ptr)
-{
 }
 
 void ClassTable::check_object(object_class* expr, class__class* class_ptr)
@@ -901,14 +865,22 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 	{
 		assign_class* expr = dynamic_cast<assign_class*>(expr_ptr);
 		if (expr)
-			return getTypeOfExpression(expr->expr, class_ptr);
+		{
+			Symbol T = getTypeOfExpression(expr->expr, class_ptr);
+			if (!expr->type)
+				expr->type = T;
+			return T;
+		}
 	}
 	{
 		static_dispatch_class* expr = dynamic_cast<static_dispatch_class*>(expr_ptr);
 		if (expr)
 		{
 			Class_ T = *types.lookup(expr->type_name);
-			return getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
+			Symbol U = getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
+			if (!expr->type)
+				expr->type = U;
+			return U;
 		}
 	}
 	{
@@ -916,18 +888,31 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 		{
 			Class_ T = *types.lookup(getTypeOfExpression(expr->expr, class_ptr));
-			return getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
+			Symbol U = getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
+			if (!expr->type)
+				expr->type = U;
+			return U;
 		}
 	}
 	{
 		cond_class* expr = dynamic_cast<cond_class*>(expr_ptr);
 		if (expr)
-			return findCommonAncestor(getTypeOfExpression(expr->then_exp, class_ptr), getTypeOfExpression(expr->else_exp, class_ptr));
+		{
+			Symbol T = findCommonAncestor(getTypeOfExpression(expr->then_exp, class_ptr), getTypeOfExpression(expr->else_exp, class_ptr));
+			if (!expr->type)
+				expr->type = T;
+			return T;
+		}
 	}
 	{
 		loop_class* expr = dynamic_cast<loop_class*>(expr_ptr);
 		if (expr)
-			return Object;
+		{
+			Symbol T = Object;
+			if (!expr->type)
+				expr->type = T;
+			return T;
+		}
 	}
 /*
 	{
@@ -939,82 +924,148 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 	{
 		block_class* expr = dynamic_cast<block_class*>(expr_ptr);
 		if (expr)
-			return getTypeOfExpression(expr->body->nth(expr->body->len() - 1), class_ptr);
+		{
+			Symbol T = getTypeOfExpression(expr->body->nth(expr->body->len() - 1), class_ptr);
+			if (!expr->type)
+				expr->type = T;
+			return T;
+		}
 	}
 	{
 		let_class* expr = dynamic_cast<let_class*>(expr_ptr);
 		if (expr)
-			return getTypeOfExpression(expr->body, class_ptr);
+		{
+			Symbol T = getTypeOfExpression(expr->body, class_ptr);
+			if (!expr->type)
+				expr->type = T;
+			return T;
+		}
 	}
 	{
 		plus_class* expr = dynamic_cast<plus_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Int;
 			return Int;
+		}
 	}
 	{
 		sub_class* expr = dynamic_cast<sub_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Int;
 			return Int;
+		}
 	}
 	{
 		mul_class* expr = dynamic_cast<mul_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Int;
 			return Int;
+		}
 	}
 	{
 		divide_class* expr = dynamic_cast<divide_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Int;
 			return Int;
+		}
 	}
 	{
 		neg_class* expr = dynamic_cast<neg_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Int;
 			return Int;
+		}
 	}
 	{
 		lt_class* expr = dynamic_cast<lt_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Bool;
 			return Bool;
+		}
 	}
 	{
 		eq_class* expr = dynamic_cast<eq_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Bool;
 			return Bool;
+		}
 	}
 	{
 		leq_class* expr = dynamic_cast<leq_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Bool;
 			return Bool;
+		}
 	}
 	{
 		comp_class* expr = dynamic_cast<comp_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Bool;
 			return Bool;
+		}
 	}
 	{
 		int_const_class* expr = dynamic_cast<int_const_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Int;
 			return Int;
+		}
 	}
 	{
 		bool_const_class* expr = dynamic_cast<bool_const_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Bool;
 			return Bool;
+		}
 	}
 	{
 		string_const_class* expr = dynamic_cast<string_const_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Str;
 			return Str;
+		}
 	}
 	{
 		new__class* expr = dynamic_cast<new__class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = expr->type_name;
 			return expr->type_name;
+		}
 	}
 	{
 		isvoid_class* expr = dynamic_cast<isvoid_class*>(expr_ptr);
 		if (expr)
+		{
+			if (!expr->type)
+				expr->type = Bool;
 			return Bool;
+		}
 	}
 	{
 		object_class* expr = dynamic_cast<object_class*>(expr_ptr);
@@ -1022,9 +1073,17 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		{
 			Symbol* T = vars.lookup(expr->name);
 			if (T)
+			{
+				if (!expr->type)
+					expr->type = *T;
 				return *T;
+			}
 			else
+			{
+				if (!expr->type)
+					expr->type = Object;
 				return Object;
+			}
 		}
 	}
 	return Object;
