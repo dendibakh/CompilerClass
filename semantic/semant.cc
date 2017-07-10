@@ -603,19 +603,6 @@ bool ClassTable::compareOverridenSignatures(method_class* meth_ptr1, method_clas
 	return true;
 }
 
-Symbol ClassTable::getMethodReturnType(class__class* cl, Symbol method)
-{
-	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
-  	{
-		method_class* meth_ptr = dynamic_cast<method_class*>(cl->features->nth(i));
-		if (meth_ptr && meth_ptr->name == method)
-		{
-			return meth_ptr->return_type;
-		}
-	}
-	return Object;
-}
-
 void ClassTable::check_cond(cond_class* expr, class__class* class_ptr)
 {
 	checkExpression(expr->pred, class_ptr);
@@ -927,9 +914,9 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 		{
 			Class_ T = *types.lookup(getTypeOfExpression(expr->expr, class_ptr));
-			Symbol U = getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
+			Symbol U = getMethodReturnTypeWithParents(dynamic_cast<class__class*>(T), expr->name);
 			if (!expr->type)
-				expr->type = U;
+				expr->type = U == SELF_TYPE ? getTypeOfExpression(expr->expr, class_ptr) : U;
 			return U;
 		}
 	}
@@ -1124,7 +1111,7 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 			if (T)
 			{
 				if (!expr->type)
-					expr->type = *T;
+					expr->type = expr->name == self ? SELF_TYPE : *T;
 				return *T;
 			}
 			else
@@ -1134,6 +1121,47 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 				return Object;
 			}
 		}
+	}
+	return Object;
+}
+
+Symbol ClassTable::getMethodReturnType(class__class* cl, Symbol method)
+{
+	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
+  	{
+		method_class* meth_ptr = dynamic_cast<method_class*>(cl->features->nth(i));
+		if (meth_ptr && meth_ptr->name == method)
+		{
+			return meth_ptr->return_type;
+		}
+	}
+	return NULL;
+}
+
+Symbol ClassTable::getMethodReturnTypeWithParents(class__class* class_ptr, Symbol method)
+{
+	Symbol T = getMethodReturnType(class_ptr, method);
+	if (T)
+		return T;
+
+	while (class_ptr->parent != No_class)
+	{
+		Class_ parent = *types.lookup(class_ptr->parent);
+		if (!parent)
+		{
+			cerr << "getMethodReturnTypeWithParents - parent was not found." << endl;
+			return Object;
+		}
+
+		class_ptr = dynamic_cast<class__class*>(parent);
+		if (!class_ptr)
+		{
+			cerr << "getMethodReturnTypeWithParents - parent was not casted." << endl;
+			return Object;
+		}
+		T = getMethodReturnType(class_ptr, method);
+		if (T)
+			return T;
 	}
 	return Object;
 }
