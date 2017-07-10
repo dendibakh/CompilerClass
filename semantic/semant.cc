@@ -476,7 +476,7 @@ void ClassTable::check_dispatch(dispatch_class* expr, class__class* class_ptr)
 	if (!checkMethodExistWithParents(dynamic_cast<class__class*>(T), expr->name))
 		semant_error(class_ptr) << endl;
 	
-	checkMethodFormals(dynamic_cast<class__class*>(T), expr->name, expr->actual, class_ptr);
+	checkMethodFormalsWithParents(dynamic_cast<class__class*>(T), expr->name, expr->actual, class_ptr);
 }
 
 bool ClassTable::checkMethodExistWithParents(class__class* class_ptr, Symbol method)
@@ -516,7 +516,32 @@ bool ClassTable::checkMethodExist(class__class* cl, Symbol method)
 	return false;
 }
 
-void ClassTable::checkMethodFormals(class__class* cl, Symbol method, Expressions exprs, class__class* class_ptr)
+void ClassTable::checkMethodFormalsWithParents(class__class* cl, Symbol method, Expressions exprs, class__class* class_ptr)
+{
+	if (checkMethodFormals(cl, method, exprs, class_ptr))
+		return;
+
+	while (cl->parent != No_class)
+	{
+		Class_ parent = *types.lookup(cl->parent);
+		if (!parent)
+		{
+			cerr << "checkMethodFormalsWithParents - parent was not found." << endl;
+			return;
+		}
+
+		cl = dynamic_cast<class__class*>(parent);
+		if (!cl)
+		{
+			cerr << "checkMethodFormalsWithParents - parent was not casted." << endl;
+			return ;
+		}
+		if (checkMethodFormals(cl, method, exprs, class_ptr))
+			return;
+	}
+}
+
+bool ClassTable::checkMethodFormals(class__class* cl, Symbol method, Expressions exprs, class__class* class_ptr)
 {
 	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
   	{
@@ -534,8 +559,10 @@ void ClassTable::checkMethodFormals(class__class* cl, Symbol method, Expressions
 				if (!isAsubtypeofB(T2, T1))
 					semant_error(class_ptr) << endl;
 			}
+			return true;
 		}
 	}
+	return false;
 }
 
 void ClassTable::checkMethodOverride(class__class* class_ptr, method_class* meth_ptr)
@@ -916,7 +943,7 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 			Class_ T = *types.lookup(getTypeOfExpression(expr->expr, class_ptr));
 			Symbol U = getMethodReturnTypeWithParents(dynamic_cast<class__class*>(T), expr->name);
 			if (!expr->type)
-				expr->type = U == SELF_TYPE ? getTypeOfExpression(expr->expr, class_ptr) : U;
+				expr->type = (U == SELF_TYPE) ? getTypeOfExpression(expr->expr, class_ptr) : U;
 			return U;
 		}
 	}
@@ -1111,7 +1138,7 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 			if (T)
 			{
 				if (!expr->type)
-					expr->type = expr->name == self ? SELF_TYPE : *T;
+					expr->type = (expr->name == self) ? SELF_TYPE : *T;
 				return *T;
 			}
 			else
