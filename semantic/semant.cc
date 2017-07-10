@@ -473,10 +473,36 @@ void ClassTable::check_dispatch(dispatch_class* expr, class__class* class_ptr)
 {
 	checkExpression(expr->expr, class_ptr);
 	Class_ T = *types.lookup(getTypeOfExpression(expr->expr, class_ptr));
-	if (!checkMethodExist(dynamic_cast<class__class*>(T), expr->name))
+	if (!checkMethodExistWithParents(dynamic_cast<class__class*>(T), expr->name))
 		semant_error(class_ptr) << endl;
 	
 	checkMethodFormals(dynamic_cast<class__class*>(T), expr->name, expr->actual, class_ptr);
+}
+
+bool ClassTable::checkMethodExistWithParents(class__class* class_ptr, Symbol method)
+{
+	if (checkMethodExist(class_ptr, method))
+		return true;
+
+	while (class_ptr->parent != No_class)
+	{
+		Class_ parent = *types.lookup(class_ptr->parent);
+		if (!parent)
+		{
+			cerr << "checkMethodExistWithParents - parent was not found." << endl;
+			return false;
+		}
+
+		class_ptr = dynamic_cast<class__class*>(parent);
+		if (!class_ptr)
+		{
+			cerr << "checkMethodExistWithParents - parent was not casted." << endl;
+			return false;
+		}
+		if (checkMethodExist(class_ptr, method))
+			return true;
+	}
+	return false;
 }
 
 bool ClassTable::checkMethodExist(class__class* cl, Symbol method)
