@@ -281,14 +281,27 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 	Symbol T1 = getTypeOfExpression(meth_ptr->expr, class_ptr);
 	Symbol T2 = meth_ptr->return_type;
 
-	if (T1 == SELF_TYPE)
-		T1 = class_ptr->name;
-
-	if (T2 == SELF_TYPE)
-		T2 = class_ptr->name;
-
-	if (!isAsubtypeofB(T1, T2))
+	if (T1 == SELF_TYPE && T2 == SELF_TYPE)
+	{
+		// ok;
+	}
+	else if (T2 == SELF_TYPE && T1 != SELF_TYPE)
+	{
+		// if declared return type is SELF_TYPE, then expression should also have SELF_TYPE
 		semant_error(class_ptr) << endl;
+	}
+	else
+	{
+		// convert SELF_TYPE to the current type
+		if (T1 == SELF_TYPE)
+			T1 = class_ptr->name;
+
+		if (T2 == SELF_TYPE)
+			T2 = class_ptr->name;
+
+		if (!isAsubtypeofB(T1, T2))
+			semant_error(class_ptr) << endl;
+	}
 
 	vars.exitscope();
 }
