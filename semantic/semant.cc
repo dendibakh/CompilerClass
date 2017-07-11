@@ -500,6 +500,7 @@ void ClassTable::checkArithmeticOrComparisonExpression(T* expr, class__class* cl
 
 void ClassTable::check_assign(assign_class* expr, class__class* class_ptr)
 {
+	checkExpression(expr->expr, class_ptr);
 	Symbol* IdType = vars.lookup(expr->name);
 	if (!IdType)
 	{
