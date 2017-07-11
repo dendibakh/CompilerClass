@@ -518,7 +518,7 @@ void ClassTable::check_static_dispatch(static_dispatch_class* expr, class__class
 	checkExpression(expr->expr, class_ptr);
 	Class_ T = *types.lookup(expr->type_name);
 	class__class* cl_ptr = dynamic_cast<class__class*>(T);
-	if (!checkMethodExist(cl_ptr, expr->name))
+	if (!checkMethodExistWithParents(cl_ptr, expr->name))
 		semant_error(class_ptr) << endl;
 
 	if (!isAsubtypeofB(getTypeOfExpression(expr->expr, class_ptr), expr->type_name))
@@ -1010,7 +1010,7 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		if (expr)
 		{
 			Class_ T = *types.lookup(expr->type_name);
-			Symbol U = getMethodReturnType(dynamic_cast<class__class*>(T), expr->name);
+			Symbol U = getMethodReturnTypeWithParents(dynamic_cast<class__class*>(T), expr->name);
 			if (!expr->type)
 				expr->type = U;
 			return U;
