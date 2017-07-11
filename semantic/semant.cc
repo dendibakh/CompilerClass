@@ -199,9 +199,19 @@ void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 	checkAttrIsNotDefinedInParents(attr_ptr->name, class_ptr);
 
 	checkExpression(attr_ptr->init, class_ptr);
+
 	getTypeOfExpression(attr_ptr->init, class_ptr); // just for annotating the AST
 
-	if (!isExpressionNoOp(attr_ptr->init) && !isAsubtypeofB(getTypeOfExpression(attr_ptr->init, class_ptr), attr_ptr->type_decl))
+	Symbol T1 = getTypeOfExpression(attr_ptr->init, class_ptr);
+	Symbol T2 = attr_ptr->type_decl;
+
+	if (T1 == SELF_TYPE)
+		T1 = class_ptr->name;
+
+	if (T2 == SELF_TYPE)
+		T2 = class_ptr->name;
+
+	if (!isExpressionNoOp(attr_ptr->init) && !isAsubtypeofB(T1, T2))
 		semant_error(class_ptr) << endl;
 }
 
@@ -1140,9 +1150,10 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 			Symbol* T = vars.lookup(expr->name);
 			if (T)
 			{
+				Symbol U = (expr->name == self) ? SELF_TYPE : *T;
 				if (!expr->type)
-					expr->type = (expr->name == self) ? SELF_TYPE : *T;
-				return *T;
+					expr->type = U;
+				return U;
 			}
 			else
 			{
