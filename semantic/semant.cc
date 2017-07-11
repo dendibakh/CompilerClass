@@ -279,7 +279,16 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 	collectFormals(meth_ptr);
 	checkExpression(meth_ptr->expr, class_ptr);
 
-	if (!isAsubtypeofB(getTypeOfExpression(meth_ptr->expr, class_ptr), meth_ptr->return_type))
+	Symbol T1 = getTypeOfExpression(meth_ptr->expr, class_ptr);
+	Symbol T2 = meth_ptr->return_type;
+
+	if (T1 == SELF_TYPE)
+		T1 = class_ptr->name;
+
+	if (T2 == SELF_TYPE)
+		T2 = class_ptr->name;
+
+	if (!isAsubtypeofB(T1, T2))
 		semant_error(class_ptr) << endl;
 
 	vars.exitscope();
@@ -563,9 +572,11 @@ bool ClassTable::checkMethodFormals(class__class* cl, Symbol method, Expressions
 			
 			for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
 			{
+				checkExpression(exprs->nth(i), class_ptr);				
+
 				Symbol T1 = (dynamic_cast<formal_class*>(meth_ptr->formals->nth(i)))->type_decl;
 				Symbol T2 = getTypeOfExpression(exprs->nth(i), class_ptr);
-				
+					
 				if (!isAsubtypeofB(T2, T1))
 					semant_error(class_ptr) << endl;
 			}
