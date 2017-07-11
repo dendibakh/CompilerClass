@@ -110,6 +110,7 @@ ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr)
 	if (checkClass(class_ptr))
 	{
 		collectClassAttributes(class_ptr->features);
+		collectParentsAttributes(class_ptr);
 		checkClassFeatures(class_ptr->features, class_ptr);
 	}
 
@@ -174,6 +175,27 @@ void ClassTable::checkClassFeatures(Features features, class__class* class_ptr)
 			if (meth_ptr)
 				checkMethod(meth_ptr, class_ptr);
 		}		
+	}
+}
+
+void ClassTable::collectParentsAttributes(class__class* class_ptr)
+{
+	while (class_ptr->parent != No_class)
+	{
+		Class_ parent = *types.lookup(class_ptr->parent);
+		if (!parent)
+		{
+			cerr << "collectParentsAttributes - parent was not found." << endl;
+			return;
+		}
+
+		class_ptr = dynamic_cast<class__class*>(parent);
+		if (!class_ptr)
+		{
+			cerr << "collectParentsAttributes - parent was not casted." << endl;
+			return;
+		}
+		collectClassAttributes(class_ptr->features);
 	}
 }
 

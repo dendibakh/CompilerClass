@@ -27,6 +27,7 @@ class ClassTable
 
   void checkClassFeatures(Features features, class__class* class_ptr);
   void collectClassAttributes(Features features);
+  void collectParentsAttributes(class__class* class_ptr);
   void checkAttribute(attr_class* attr_ptr, class__class* class_ptr);
   void checkMethod(method_class* meth_ptr, class__class* class_ptr);
 
