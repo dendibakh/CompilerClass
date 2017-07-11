@@ -199,7 +199,6 @@ void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 	checkAttrIsNotDefinedInParents(attr_ptr->name, class_ptr);
 
 	checkExpression(attr_ptr->init, class_ptr);
-
 	getTypeOfExpression(attr_ptr->init, class_ptr); // just for annotating the AST
 
 	Symbol T1 = getTypeOfExpression(attr_ptr->init, class_ptr);
@@ -578,10 +577,15 @@ bool ClassTable::checkMethodFormals(class__class* cl, Symbol method, Expressions
 			for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
 			{
 				checkExpression(exprs->nth(i), class_ptr);				
-
 				Symbol T1 = (dynamic_cast<formal_class*>(meth_ptr->formals->nth(i)))->type_decl;
 				Symbol T2 = getTypeOfExpression(exprs->nth(i), class_ptr);
 					
+				if (T1 == SELF_TYPE)
+					T1 = class_ptr->name;
+
+				if (T2 == SELF_TYPE)
+					T2 = class_ptr->name;
+
 				if (!isAsubtypeofB(T2, T1))
 					semant_error(class_ptr) << endl;
 			}
