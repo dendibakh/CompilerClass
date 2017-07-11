@@ -687,7 +687,7 @@ void ClassTable::check_let(let_class* expr, class__class* class_ptr)
 	
 	if (!isExpressionNoOp(expr->init) && !isAsubtypeofB(getTypeOfExpression(expr->init, class_ptr), expr->type_decl))
 		semant_error(class_ptr) << endl;
-	
+
 	if (expr->identifier == self)
 		semant_error(class_ptr) << endl;
 
@@ -988,7 +988,10 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 		let_class* expr = dynamic_cast<let_class*>(expr_ptr);
 		if (expr)
 		{
+			vars.enterscope();
+			vars.addid(expr->identifier, &expr->type_decl);
 			Symbol T = getTypeOfExpression(expr->body, class_ptr);
+			vars.exitscope();
 			if (!expr->type)
 				expr->type = T;
 			return T;
