@@ -312,7 +312,6 @@ void ClassTable::checkMethod(method_class* meth_ptr, class__class* class_ptr)
 	vars.enterscope();
 	collectFormals(meth_ptr);
 	checkExpression(meth_ptr->expr, class_ptr);
-
 	Symbol T1 = getTypeOfExpression(meth_ptr->expr, class_ptr);
 	Symbol T2 = meth_ptr->return_type;
 
@@ -522,8 +521,10 @@ void ClassTable::check_assign(assign_class* expr, class__class* class_ptr)
 	else
 	{
 		Symbol T1 = getTypeOfExpression(expr->expr, class_ptr);
-		if (!isAsubtypeofB(T1, *IdType))
-			semant_error(class_ptr) << endl;
+		Symbol T2 = *IdType;
+
+		if (!isAsubtypeofB(T1, T2))
+			semant_error(class_ptr) << endl;	
 	}
 }
 
@@ -1038,7 +1039,7 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 			Symbol U = getMethodReturnTypeWithParents(dynamic_cast<class__class*>(T), expr->name);
 			if (!expr->type)
 				expr->type = (U == SELF_TYPE) ? getTypeOfExpression(expr->expr, class_ptr) : U;
-			return U;
+			return (U == SELF_TYPE) ? getTypeOfExpression(expr->expr, class_ptr) : U;
 		}
 	}
 	{
