@@ -226,14 +226,27 @@ void ClassTable::checkAttribute(attr_class* attr_ptr, class__class* class_ptr)
 	Symbol T1 = getTypeOfExpression(attr_ptr->init, class_ptr);
 	Symbol T2 = attr_ptr->type_decl;
 
-	if (T1 == SELF_TYPE)
-		T1 = class_ptr->name;
-
-	if (T2 == SELF_TYPE)
-		T2 = class_ptr->name;
-
-	if (!isExpressionNoOp(attr_ptr->init) && !isAsubtypeofB(T1, T2))
+	if (T1 == SELF_TYPE && T2 == SELF_TYPE)
+	{
+		// ok;
+	}
+	else if (T2 == SELF_TYPE && T1 != SELF_TYPE)
+	{
+		// if declared return type is SELF_TYPE, then expression should also have SELF_TYPE
 		semant_error(class_ptr) << endl;
+	}
+	else
+	{
+		// convert SELF_TYPE to the current type
+		if (T1 == SELF_TYPE)
+			T1 = class_ptr->name;
+
+		if (T2 == SELF_TYPE)
+			T2 = class_ptr->name;
+
+		if (!isExpressionNoOp(attr_ptr->init) && !isAsubtypeofB(T1, T2))
+			semant_error(class_ptr) << endl;
+	}
 }
 
 void ClassTable::checkAttrIsNotDefinedInParents(Symbol attr, class__class* class_ptr)
@@ -1056,16 +1069,28 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 			if (expr->cases->len() == 1)
 			{
 				branch_class* branch_ptr = (branch_class*)expr->cases->nth(expr->cases->first());
+				vars.enterscope();
+				vars.addid(branch_ptr->name, &branch_ptr->type_decl);
 				T = getTypeOfExpression(branch_ptr->expr, class_ptr);
+				vars.exitscope();
 			}
 			else if (expr->cases->len() > 1)
 			{
 				branch_class* branch_ptr = (branch_class*)expr->cases->nth(expr->cases->first());
+				
+				vars.enterscope();
+				vars.addid(branch_ptr->name, &branch_ptr->type_decl);
 				T = getTypeOfExpression(branch_ptr->expr, class_ptr);
+				vars.exitscope();
+
 				for(int i = expr->cases->first() + 1; expr->cases->more(i); i = expr->cases->next(i))
 				{
-					branch_class* br_ptr = (branch_class*)expr->cases->nth(i);
-					T = findCommonAncestor(T, getTypeOfExpression(br_ptr->expr, class_ptr));			
+					branch_ptr = (branch_class*)expr->cases->nth(i);
+
+					vars.enterscope();
+					vars.addid(branch_ptr->name, &branch_ptr->type_decl);
+					T = findCommonAncestor(T, getTypeOfExpression(branch_ptr->expr, class_ptr));
+					vars.exitscope();
 				}
 			}
 			if (!expr->type)
