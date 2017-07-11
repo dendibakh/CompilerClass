@@ -335,12 +335,17 @@ void ClassTable::collectFormals(method_class* meth_ptr)
 
 void ClassTable::check_branch(branch_class* expr, class__class* class_ptr)
 {
-	//cout << "branch : " << branch_class->name << endl;
+	//cerr << "branch : " << expr->name << endl;
 	if (!types.lookup(expr->type_decl))
 		semant_error(class_ptr) << endl;
 
+	vars.enterscope();
+	vars.addid(expr->name, &expr->type_decl);
+
 	checkExpression(expr->expr, class_ptr);
 	getTypeOfExpression(expr->expr, class_ptr); // just for annotating the AST
+
+	vars.exitscope();
 }
 
 void ClassTable::checkExpression(Expression expr_ptr, class__class* class_ptr)
@@ -682,11 +687,26 @@ void ClassTable::check_typcase(typcase_class* expr, class__class* class_ptr)
   checkExpression(expr->expr, class_ptr);
   getTypeOfExpression(expr->expr, class_ptr); // just for annotating the AST
 
+  checkForDupBranches(expr, class_ptr);
+
   for(int i = expr->cases->first(); expr->cases->more(i); i = expr->cases->next(i))
   {
 	branch_class* branch_ptr = (branch_class*)expr->cases->nth(i);
 	check_branch(branch_ptr, class_ptr);
   }
+}
+
+void ClassTable::checkForDupBranches(typcase_class* expr, class__class* class_ptr)
+{
+	std::set<Symbol> branchTypes;
+	for(int i = expr->cases->first(); expr->cases->more(i); i = expr->cases->next(i))
+	{
+		branch_class* branch_ptr = (branch_class*)expr->cases->nth(i);
+		if (branchTypes.find(branch_ptr->type_decl) != branchTypes.end())
+			semant_error(class_ptr) << endl;			
+		else
+			branchTypes.insert(branch_ptr->type_decl);
+	}
 }
 
 void ClassTable::check_block(block_class* expr, class__class* class_ptr)
@@ -988,13 +1008,31 @@ Symbol ClassTable::getTypeOfExpression(Expression expr_ptr, class__class* class_
 			return T;
 		}
 	}
-/*
 	{
 		typcase_class* expr = dynamic_cast<typcase_class*>(expr_ptr);
 		if (expr)
-			check_typcase(expr, class_ptr);
+		{
+			Symbol T = Object;
+			if (expr->cases->len() == 1)
+			{
+				branch_class* branch_ptr = (branch_class*)expr->cases->nth(expr->cases->first());
+				T = getTypeOfExpression(branch_ptr->expr, class_ptr);
+			}
+			else if (expr->cases->len() > 1)
+			{
+				branch_class* branch_ptr = (branch_class*)expr->cases->nth(expr->cases->first());
+				T = getTypeOfExpression(branch_ptr->expr, class_ptr);
+				for(int i = expr->cases->first() + 1; expr->cases->more(i); i = expr->cases->next(i))
+				{
+					branch_class* br_ptr = (branch_class*)expr->cases->nth(i);
+					T = findCommonAncestor(T, getTypeOfExpression(br_ptr->expr, class_ptr));			
+				}
+			}
+			if (!expr->type)
+				expr->type = T;
+			return T;
+		}
 	}
-*/
 	{
 		block_class* expr = dynamic_cast<block_class*>(expr_ptr);
 		if (expr)

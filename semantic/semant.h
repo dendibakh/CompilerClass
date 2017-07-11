@@ -78,6 +78,8 @@ class ClassTable
   template <class T>
   void checkArithmeticOrComparisonExpression(T* expr, class__class* class_ptr);
 
+  void checkForDupBranches(typcase_class* expr, class__class* class_ptr);
+
 public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
