@@ -26,7 +26,8 @@
 #include "cgen_gc.h"
 
 extern void emit_string_constant(ostream& str, char *s);
-extern int cgen_debug;
+const int cgen_debug = 1;
+const int size_debug = 0;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -135,7 +136,7 @@ void program_class::cgen(ostream &os)
   os << "# start of generated code\n";
 
   initialize_constants();
-  CgenClassTable *codegen_classtable = new CgenClassTable(classes,os);
+  CgenClassTable codegen_classtable(classes,os);
 
   os << "\n# end of generated code\n";
 }
@@ -402,7 +403,7 @@ void StringEntry::code_def(ostream& s, int stringclasstag)
       << WORD;
 
 
- /***** Add dispatch information for class String ******/
+  emit_disptable_ref(Str, s);
 
       s << endl;                                              // dispatch table
       s << WORD;  lensym->code_ref(s);  s << endl;            // string length
@@ -444,7 +445,7 @@ void IntEntry::code_def(ostream &s, int intclasstag)
       << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
       << WORD; 
 
- /***** Add dispatch information for class Int ******/
+  emit_disptable_ref(Int, s);
 
       s << endl;                                          // dispatch table
       s << WORD << str << endl;                           // integer value
@@ -488,7 +489,7 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
       << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl   // object size
       << WORD;
 
- /***** Add dispatch information for class Bool ******/
+  emit_disptable_ref(Bool, s);
 
       s << endl;                                            // dispatch table
       s << WORD << val << endl;                             // value (0 or 1)
@@ -619,9 +620,9 @@ void CgenClassTable::code_constants()
 
 CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 {
-   stringclasstag = 0 /* Change to your String class tag here */;
-   intclasstag =    0 /* Change to your Int class tag here */;
-   boolclasstag =   0 /* Change to your Bool class tag here */;
+   stringclasstag = 4 /* Change to your String class tag here */;
+   intclasstag =    2 /* Change to your Int class tag here */;
+   boolclasstag =   3 /* Change to your Bool class tag here */;
 
    enterscope();
    if (cgen_debug) cout << "Building CgenClassTable" << endl;
@@ -828,6 +829,9 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
 
+  assignClassTags();
+  emitProtos();
+
 //                 Add your code to emit
 //                   - prototype objects
 //                   - class_nameTab
@@ -844,6 +848,72 @@ void CgenClassTable::code()
 
 }
 
+
+void CgenClassTable::assignClassTags()
+{
+//calculateClassSize(nds->tl()->hd());
+  int i = 0;
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+  {
+     classTags[l->hd()->name] = i++;
+     if (cgen_debug) 
+	cout << "symb: " << l->hd()->name << " tag: " << i << "size: " << calculateClassSize(l->hd()) << endl;
+  }
+}
+
+void CgenClassTable::emitProtos()
+{
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+  {
+     str << l->hd()->name << PROTOBJ_SUFFIX << LABEL << endl;
+     str << WORD << classTags[l->hd()->name] << endl; // tag
+     str << WORD << calculateClassSize(l->hd()) << endl; // size
+     str << WORD << l->hd()->name << DISPTAB_SUFFIX << endl;
+     // fill the layout
+     if (l->hd()->name != Object && l->hd()->name != IO)
+	str << WORD << "-1" << endl;
+  }
+}
+
+int CgenClassTable::calculateClassSize(CgenNodeP cl)
+{
+	return 3 + calculateAttrSize(cl);
+}
+
+int CgenClassTable::calculateAttrSize(CgenNodeP cl)
+{
+  if (size_debug) 
+	cout << "curr: " << cl->name << endl;
+
+   if (cl->name == No_class)
+	return 0;
+   if (cl->name == prim_slot)
+	return 1;
+   if (cl->name == Str)
+	return 2;
+   if (cl->name == Int)
+	return 1;
+   if (cl->name == Bool)
+	return 1;
+
+   int parents = calculateAttrSize(cl->get_parentnd());
+
+  if (size_debug) 
+	cout << "parents: " << parents << endl;
+	
+   int own = 0;
+
+	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
+	{
+		attr_class* attr_ptr = dynamic_cast<attr_class*>(cl->features->nth(i));
+		if (attr_ptr)
+		{
+			own += calculateAttrSize(lookup(attr_ptr->type_decl));
+		}
+	}
+
+   return parents + own;	
+}
 
 CgenNodeP CgenClassTable::root()
 {
@@ -913,7 +983,9 @@ void mul_class::code(ostream &s) {
 void divide_class::code(ostream &s) {
 }
 
-void neg_class::code(ostream &s) {
+void neg_class::code(ostream &s) 
+{
+	emit_neg(ACC,ACC,s);
 }
 
 void lt_class::code(ostream &s) {

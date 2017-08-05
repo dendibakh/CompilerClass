@@ -3,6 +3,7 @@
 #include "emit.h"
 #include "cool-tree.h"
 #include "symtab.h"
+#include <map>
 
 enum Basicness     {Basic, NotBasic};
 #define TRUE 1
@@ -21,6 +22,8 @@ private:
    int stringclasstag;
    int intclasstag;
    int boolclasstag;
+
+   std::map<Symbol, int> classTags;
 
 
 // The following methods emit code for
@@ -42,6 +45,12 @@ private:
    void install_classes(Classes cs);
    void build_inheritance_tree();
    void set_relations(CgenNodeP nd);
+
+   void assignClassTags();
+   void emitProtos();
+   int calculateClassSize(CgenNodeP cl);
+   int calculateAttrSize(CgenNodeP cl);
+
 public:
    CgenClassTable(Classes, ostream& str);
    void code();
