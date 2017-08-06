@@ -832,13 +832,7 @@ void CgenClassTable::code()
   emitClassNameTab();
   assignClassTags();
   emitProtos();
-
-
-//                 Add your code to emit
-//                   - prototype objects - done
-//                   - class_nameTab
-//                   - dispatch tables
-//
+  emitDispTab();
 
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
@@ -872,7 +866,9 @@ void CgenClassTable::emitProtos()
      str << WORD << classTags[l->hd()->name] << endl; // tag
      str << WORD << calculateClassSize(l->hd()) << endl; // size
      str << WORD << l->hd()->name << DISPTAB_SUFFIX << endl;
-     // fill the layout
+
+     // todo: fill the layout of objects
+
      if (l->hd()->name == Str)
 	str << WORD << INTCONST_PREFIX << "0" << endl << WORD << "0" << endl;
      if (l->hd()->name == Int)
@@ -935,6 +931,38 @@ void CgenClassTable::emitClassNameTab()
         str << endl;
      }
   }
+}
+
+void CgenClassTable::emitDispTab()
+{
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+  {
+     str << l->hd()->name << DISPTAB_SUFFIX << LABEL << endl;
+     emitDispTabWithParents(l->hd());
+  }
+}
+
+void CgenClassTable::emitDispTabWithParents(CgenNodeP cl)
+{
+	if (cl->name == No_class)
+		return;
+	if (cl->name == prim_slot)
+		return;
+	
+	emitDispTabWithParents(cl->get_parentnd());
+	generateClassDispTab(cl);
+}
+
+void CgenClassTable::generateClassDispTab(CgenNodeP cl)
+{
+	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
+	{
+		method_class* meth_ptr = dynamic_cast<method_class*>(cl->features->nth(i));
+		if (meth_ptr)
+		{
+			str << WORD << cl->name << "." << meth_ptr->name << endl;
+		}
+	}
 }
 
 CgenNodeP CgenClassTable::root()
