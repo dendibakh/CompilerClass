@@ -51,6 +51,8 @@ private:
    int calculateClassSize(CgenNodeP cl);
    int calculateAttrSize(CgenNodeP cl);
 
+   void emitClassNameTab();
+
 public:
    CgenClassTable(Classes, ostream& str);
    void code();

@@ -829,11 +829,13 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
 
+  emitClassNameTab();
   assignClassTags();
   emitProtos();
 
+
 //                 Add your code to emit
-//                   - prototype objects
+//                   - prototype objects - done
 //                   - class_nameTab
 //                   - dispatch tables
 //
@@ -865,13 +867,18 @@ void CgenClassTable::emitProtos()
 {
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
+     str << WORD << "-1" << endl;
      str << l->hd()->name << PROTOBJ_SUFFIX << LABEL << endl;
      str << WORD << classTags[l->hd()->name] << endl; // tag
      str << WORD << calculateClassSize(l->hd()) << endl; // size
      str << WORD << l->hd()->name << DISPTAB_SUFFIX << endl;
      // fill the layout
-     if (l->hd()->name != Object && l->hd()->name != IO)
-	str << WORD << "-1" << endl;
+     if (l->hd()->name == Str)
+	str << WORD << INTCONST_PREFIX << "0" << endl << WORD << "0" << endl;
+     if (l->hd()->name == Int)
+	str << WORD << "0" << endl;
+     if (l->hd()->name == Bool)
+	str << WORD << "0" << endl;	
   }
 }
 
@@ -913,6 +920,21 @@ int CgenClassTable::calculateAttrSize(CgenNodeP cl)
 	}
 
    return parents + own;	
+}
+
+void CgenClassTable::emitClassNameTab()
+{
+  str << CLASSNAMETAB << LABEL;
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+  {
+     StringEntry* entry = stringtable.lookup_string(l->hd()->name->get_string());
+     if (entry)
+     {
+	str << WORD; 
+        entry->code_ref(str);
+        str << endl;
+     }
+  }
 }
 
 CgenNodeP CgenClassTable::root()
