@@ -24,6 +24,7 @@
 
 #include "cgen.h"
 #include "cgen_gc.h"
+#include <vector>
 
 extern void emit_string_constant(ostream& str, char *s);
 const int cgen_debug = 1;
@@ -829,10 +830,12 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
 
-  emitClassNameTab();
   assignClassTags();
-  emitProtos();
+
+  emitClassNameTab();
+  emitClassObjTab();
   emitDispTab();
+  emitProtos();
 
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
@@ -963,6 +966,33 @@ void CgenClassTable::generateClassDispTab(CgenNodeP cl)
 			str << WORD << cl->name << "." << meth_ptr->name << endl;
 		}
 	}
+}
+
+void CgenClassTable::emitClassObjTab()
+{
+  str << CLASSOBJTAB << LABEL;
+  std::vector<CgenNodeP> v;
+  v.push_back(root());
+  
+  while (!v.empty())
+  {
+	for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
+	{
+		str << WORD << (*i)->name << PROTOBJ_SUFFIX << endl;
+		str << WORD << (*i)->name << CLASSINIT_SUFFIX << endl;
+	}
+
+	std::vector<CgenNodeP> temp;
+
+	for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
+	{
+		for(List<CgenNode>* l = (*i)->get_children(); l; l = l->tl())
+		{
+			temp.push_back(l->hd());
+		}
+	}
+	v = temp;
+  }
 }
 
 CgenNodeP CgenClassTable::root()

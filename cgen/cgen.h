@@ -56,6 +56,8 @@ private:
    void emitDispTabWithParents(CgenNodeP cl);
    void generateClassDispTab(CgenNodeP cl);
 
+   void emitClassObjTab();
+
 public:
    CgenClassTable(Classes, ostream& str);
    void code();
