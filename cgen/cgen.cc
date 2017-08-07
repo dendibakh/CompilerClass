@@ -848,11 +848,7 @@ void CgenClassTable::code()
   code_global_text();
 
   generateInitMethods();
-//                 Add your code to emit
-//                   - object initializer
-//                   - the class methods
-//                   - etc...
-
+  generateClassMethods();
 }
 
 
@@ -1049,7 +1045,7 @@ void CgenClassTable::generateInitMethods()
 
 void CgenClassTable::generateInitMethodForClass(Symbol cl)
 {
-     str << cl << CLASSINIT_SUFFIX << LABEL << endl;
+     str << cl << CLASSINIT_SUFFIX << LABEL;
      emit_addiu(SP,SP,-12,str);
      emit_store(FP,3,SP,str);
      emit_store(SELF,2,SP,str);
@@ -1069,6 +1065,17 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
      emit_load(RA,1,SP,str);
      emit_addiu(SP,SP,12,str);
      emit_return(str);
+}
+
+void CgenClassTable::generateClassMethods()
+{
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+  {
+     if (!l->hd()->basic())
+     {
+	// generate code for class methods
+     }
+  }
 }
 
 CgenNodeP CgenClassTable::root()

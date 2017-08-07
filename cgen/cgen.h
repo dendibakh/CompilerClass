@@ -62,6 +62,8 @@ private:
    void generateInitMethods();
    void generateInitMethodForClass(Symbol cl);
 
+   void generateClassMethods();
+
 public:
    CgenClassTable(Classes, ostream& str);
    void code();
