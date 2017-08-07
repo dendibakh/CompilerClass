@@ -49,6 +49,7 @@ private:
 
    void assignClassTags();
    void emitProtos();
+   void emitOneProtObj(CgenNodeP cl);
    int calculateClassSize(CgenNodeP cl);
    int calculateAttrSize(CgenNodeP cl);
 
@@ -59,6 +60,7 @@ private:
 
    void emitClassObjTab();
    void generateInitMethods();
+   void generateInitMethodForClass(Symbol cl);
 
 public:
    CgenClassTable(Classes, ostream& str);

@@ -847,6 +847,7 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
 
+  generateInitMethods();
 //                 Add your code to emit
 //                   - object initializer
 //                   - the class methods
@@ -877,23 +878,30 @@ void CgenClassTable::assignClassTags()
 
 void CgenClassTable::emitProtos()
 {
+  emitOneProtObj(lookup(Object));
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
+	if (l->hd()->name != Object)
+		emitOneProtObj(l->hd());
+  }
+}
+
+void CgenClassTable::emitOneProtObj(CgenNodeP cl)
+{
      str << WORD << "-1" << endl;
-     str << l->hd()->name << PROTOBJ_SUFFIX << LABEL;
-     str << WORD << classTags[l->hd()->name] << endl; // tag
-     str << WORD << calculateClassSize(l->hd()) << endl; // size
-     str << WORD << l->hd()->name << DISPTAB_SUFFIX << endl;
+     str << cl->name << PROTOBJ_SUFFIX << LABEL;
+     str << WORD << classTags[cl->name] << endl; // tag
+     str << WORD << calculateClassSize(cl) << endl; // size
+     str << WORD << cl->name << DISPTAB_SUFFIX << endl;
 
      // todo: fill the layout of objects
 
-     if (l->hd()->name == Str)
+     if (cl->name == Str)
 	str << WORD << INTCONST_PREFIX << "0" << endl << WORD << "0" << endl;
-     if (l->hd()->name == Int)
+     if (cl->name == Int)
 	str << WORD << "0" << endl;
-     if (l->hd()->name == Bool)
+     if (cl->name == Bool)
 	str << WORD << "0" << endl;	
-  }
 }
 
 int CgenClassTable::calculateClassSize(CgenNodeP cl)
@@ -953,10 +961,16 @@ void CgenClassTable::emitClassNameTab()
 
 void CgenClassTable::emitDispTab()
 {
+  str << Object << DISPTAB_SUFFIX << LABEL;
+  generateClassDispTab(lookup(Object));
+
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
-     str << l->hd()->name << DISPTAB_SUFFIX << LABEL;
-     emitDispTabWithParents(l->hd());
+     if (l->hd()->name != Object)
+     {
+       str << l->hd()->name << DISPTAB_SUFFIX << LABEL;
+       emitDispTabWithParents(l->hd());
+     }
   }
 }
 
@@ -1025,11 +1039,36 @@ void CgenClassTable::emitClassObjTab()
 
 void CgenClassTable::generateInitMethods()
 {
+  generateInitMethodForClass(Object);
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
-     str << l->hd()->name << CLASSINIT_SUFFIX << LABEL << endl;
-     emitDispTabWithParents(l->hd());
+     if (l->hd()->name != Object)
+	generateInitMethodForClass(l->hd()->name);
   }
+}
+
+void CgenClassTable::generateInitMethodForClass(Symbol cl)
+{
+     str << cl << CLASSINIT_SUFFIX << LABEL << endl;
+     emit_addiu(SP,SP,-12,str);
+     emit_store(FP,3,SP,str);
+     emit_store(SELF,2,SP,str);
+     emit_store(RA,1,SP,str);
+     emit_addiu(FP,SP,4,str);
+     emit_move(SELF, ACC, str);
+     if (cl != Object)
+     {
+	     std::string s = Object->get_string();
+	     s += CLASSINIT_SUFFIX;
+	     emit_jal((char*)s.c_str(), str);
+		// todo: Classes could be derived not necessary from Object.
+     }
+     emit_move(ACC, SELF, str);
+     emit_load(FP,3,SP,str);
+     emit_load(SELF,2,SP,str);
+     emit_load(RA,1,SP,str);
+     emit_addiu(SP,SP,12,str);
+     emit_return(str);
 }
 
 CgenNodeP CgenClassTable::root()
