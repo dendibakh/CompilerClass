@@ -880,7 +880,7 @@ void CgenClassTable::emitProtos()
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
      str << WORD << "-1" << endl;
-     str << l->hd()->name << PROTOBJ_SUFFIX << LABEL << endl;
+     str << l->hd()->name << PROTOBJ_SUFFIX << LABEL;
      str << WORD << classTags[l->hd()->name] << endl; // tag
      str << WORD << calculateClassSize(l->hd()) << endl; // size
      str << WORD << l->hd()->name << DISPTAB_SUFFIX << endl;
@@ -955,7 +955,7 @@ void CgenClassTable::emitDispTab()
 {
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
-     str << l->hd()->name << DISPTAB_SUFFIX << LABEL << endl;
+     str << l->hd()->name << DISPTAB_SUFFIX << LABEL;
      emitDispTabWithParents(l->hd());
   }
 }
@@ -987,7 +987,7 @@ void CgenClassTable::generateClassDispTab(CgenNodeP cl)
 void CgenClassTable::emitClassObjTab()
 {
   str << CLASSOBJTAB << LABEL;
-  std::vector<CgenNodeP> v;
+  /*std::vector<CgenNodeP> v;
   v.push_back(root());
   
   while (!v.empty())
@@ -1008,6 +1008,18 @@ void CgenClassTable::emitClassObjTab()
 		}
 	}
 	v = temp;
+  }*/
+  std::map<int, Symbol> classTagsRev;
+
+  for (std::map<Symbol, int>::iterator it = classTags.begin(); it != classTags.end(); ++it)
+  {
+	classTagsRev[it->second] = it->first;
+  }
+
+  for (std::map<int, Symbol>::iterator it = classTagsRev.begin(); it != classTagsRev.end(); ++it)
+  {
+	str << WORD << it->second << PROTOBJ_SUFFIX << endl;
+	str << WORD << it->second << CLASSINIT_SUFFIX << endl;
   }
 }
 
