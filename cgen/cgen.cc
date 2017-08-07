@@ -619,11 +619,18 @@ void CgenClassTable::code_constants()
 }
 
 
-CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
+CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s), classTagInc(0)
 {
-   stringclasstag = 4 /* Change to your String class tag here */;
-   intclasstag =    2 /* Change to your Int class tag here */;
-   boolclasstag =   3 /* Change to your Bool class tag here */;
+   classTags[Object] = classTagInc++;
+   classTags[IO] = classTagInc++;
+
+   intclasstag =    classTagInc++ /* Change to your Int class tag here */;
+   boolclasstag =   classTagInc++ /* Change to your Bool class tag here */;
+   stringclasstag = classTagInc++ /* Change to your String class tag here */;
+
+   classTags[Str] = stringclasstag;
+   classTags[Int] = intclasstag;
+   classTags[Bool] = boolclasstag;
 
    enterscope();
    if (cgen_debug) cout << "Building CgenClassTable" << endl;
@@ -851,12 +858,20 @@ void CgenClassTable::code()
 void CgenClassTable::assignClassTags()
 {
 //calculateClassSize(nds->tl()->hd());
-  int i = 0;
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
-     classTags[l->hd()->name] = i++;
-     if (cgen_debug) 
-	cout << "symb: " << l->hd()->name << " tag: " << i << "size: " << calculateClassSize(l->hd()) << endl;
+     std::map<Symbol, int>::iterator it = classTags.find(l->hd()->name);
+     if (it == classTags.end())
+     {
+     	classTags[l->hd()->name] = classTagInc++;
+        if (cgen_debug) 
+	   cout << "symb: " << l->hd()->name << " tag: " << classTagInc - 1 << "size: " << calculateClassSize(l->hd()) << endl;
+     }
+     else
+     {   
+        if (cgen_debug) 
+	   cout << "symb: " << l->hd()->name << " tag: " << it->second << "size: " << calculateClassSize(l->hd()) << endl;
+     }
   }
 }
 
@@ -954,6 +969,7 @@ void CgenClassTable::emitDispTabWithParents(CgenNodeP cl)
 	
 	emitDispTabWithParents(cl->get_parentnd());
 	generateClassDispTab(cl);
+	// todo: Some methods could be overwritten in derived classes. Fix that.
 }
 
 void CgenClassTable::generateClassDispTab(CgenNodeP cl)
@@ -992,6 +1008,15 @@ void CgenClassTable::emitClassObjTab()
 		}
 	}
 	v = temp;
+  }
+}
+
+void CgenClassTable::generateInitMethods()
+{
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+  {
+     str << l->hd()->name << CLASSINIT_SUFFIX << LABEL << endl;
+     emitDispTabWithParents(l->hd());
   }
 }
 

@@ -22,7 +22,8 @@ private:
    int stringclasstag;
    int intclasstag;
    int boolclasstag;
-
+   
+   int classTagInc;
    std::map<Symbol, int> classTags;
 
 
@@ -57,6 +58,7 @@ private:
    void generateClassDispTab(CgenNodeP cl);
 
    void emitClassObjTab();
+   void generateInitMethods();
 
 public:
    CgenClassTable(Classes, ostream& str);
