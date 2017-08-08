@@ -989,7 +989,7 @@ void CgenClassTable::generateClassDispTab(CgenNodeP cl)
 		method_class* meth_ptr = dynamic_cast<method_class*>(cl->features->nth(i));
 		if (meth_ptr)
 		{
-			str << WORD << cl->name << "." << meth_ptr->name << endl;
+			str << WORD << cl->name << METHOD_SEP << meth_ptr->name << endl;
 		}
 	}
 }
@@ -1073,9 +1073,36 @@ void CgenClassTable::generateClassMethods()
   {
      if (!l->hd()->basic())
      {
-	// generate code for class methods
+	for(int i = l->hd()->features->first(); l->hd()->features->more(i); i = l->hd()->features->next(i))
+	{
+		method_class* meth_ptr = dynamic_cast<method_class*>(l->hd()->features->nth(i));
+		if (meth_ptr)
+		{
+			str << l->hd()->name << METHOD_SEP << meth_ptr->name << LABEL;
+			generateCodeForClassMethod(meth_ptr);
+		}
+	}
      }
   }
+}
+
+void CgenClassTable::generateCodeForClassMethod(method_class* meth_ptr)
+{
+     emit_addiu(SP,SP,-12,str);
+     emit_store(FP,3,SP,str);
+     emit_store(SELF,2,SP,str);
+     emit_store(RA,1,SP,str);
+     emit_addiu(FP,SP,4,str);
+     emit_move(SELF, ACC, str);
+     emit_move(ACC, SELF, str);
+	
+     meth_ptr->expr->code(str);
+
+     emit_load(FP,3,SP,str);
+     emit_load(SELF,2,SP,str);
+     emit_load(RA,1,SP,str);
+     emit_addiu(SP,SP,12,str);
+     emit_return(str);
 }
 
 CgenNodeP CgenClassTable::root()
@@ -1116,7 +1143,11 @@ void assign_class::code(ostream &s) {
 void static_dispatch_class::code(ostream &s) {
 }
 
-void dispatch_class::code(ostream &s) {
+void dispatch_class::code(ostream &s) 
+{
+	std::string str = "_dispatch_";
+	str += name->get_string();
+	emit_jal((char*)str.c_str(), s);
 }
 
 void cond_class::code(ostream &s) {
@@ -1128,7 +1159,12 @@ void loop_class::code(ostream &s) {
 void typcase_class::code(ostream &s) {
 }
 
-void block_class::code(ostream &s) {
+void block_class::code(ostream &s) 
+{
+  for(int i = body->first(); body->more(i); i = body->next(i))
+  {
+	body->nth(i)->code(s);
+  }
 }
 
 void let_class::code(ostream &s) {
