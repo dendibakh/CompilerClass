@@ -27,7 +27,7 @@
 #include <vector>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 1;
+const int cgen_debug = 0;
 const int size_debug = 0;
 
 //
@@ -1145,9 +1145,27 @@ void static_dispatch_class::code(ostream &s) {
 
 void dispatch_class::code(ostream &s) 
 {
-	std::string str = "_dispatch_";
-	str += name->get_string();
-	emit_jal((char*)str.c_str(), s);
+	if (name == cool_abort)
+	{
+		emit_bne(ACC, ZERO, 0, s);
+		emit_load_address(ACC, "str_const0", s);
+		emit_load_imm(T1, 1, s);
+
+		std::string str = "_dispatch_";
+		str += name->get_string();
+		emit_jal((char*)str.c_str(), s);
+
+		emit_label_def(0, s);
+		emit_load(T1, 2, ACC, s);
+		emit_load(T1, 0, T1, s);
+		emit_jalr(T1, s);
+	}
+	else
+	{
+		std::string str = "_dispatch_";
+		str += name->get_string();
+		emit_jal((char*)str.c_str(), s);		
+	}
 }
 
 void cond_class::code(ostream &s) {
