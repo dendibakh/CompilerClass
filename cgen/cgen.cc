@@ -1162,6 +1162,17 @@ void dispatch_class::code(ostream &s)
 	}
 	else
 	{
+		// saving callee's frame pointer
+		emit_push(FP, s);
+
+		// pushing arguments to the stack
+		for(int i = actual->first(); actual->more(i); i = actual->next(i))
+		{
+			actual->nth(i)->code(s);
+			emit_push(ACC, s);
+		}
+
+		// calling the function and saving return address in $ra
 		std::string str = "_dispatch_";
 		str += name->get_string();
 		emit_jal((char*)str.c_str(), s);		
@@ -1188,16 +1199,44 @@ void block_class::code(ostream &s)
 void let_class::code(ostream &s) {
 }
 
-void plus_class::code(ostream &s) {
+void plus_class::code(ostream &s) 
+{
+	e1->code(s);
+	emit_push(ACC, s);
+	e2->code(s);
+	emit_load(T1,4,SP,s);
+	emit_add(ACC, T1, ACC, s);
+	emit_addiu(SP,SP,4,s);
 }
 
-void sub_class::code(ostream &s) {
+void sub_class::code(ostream &s) 
+{
+	e1->code(s);
+	emit_push(ACC, s);
+	e2->code(s);
+	emit_load(T1,4,SP,s);
+	emit_sub(ACC, T1, ACC, s);
+	emit_addiu(SP,SP,4,s);
 }
 
-void mul_class::code(ostream &s) {
+void mul_class::code(ostream &s) 
+{
+	e1->code(s);
+	emit_push(ACC, s);
+	e2->code(s);
+	emit_load(T1,4,SP,s);
+	emit_mul(ACC, T1, ACC, s);
+	emit_addiu(SP,SP,4,s);
 }
 
-void divide_class::code(ostream &s) {
+void divide_class::code(ostream &s) 
+{
+	e1->code(s);
+	emit_push(ACC, s);
+	e2->code(s);
+	emit_load(T1,4,SP,s);
+	emit_div(ACC, T1, ACC, s);
+	emit_addiu(SP,SP,4,s);
 }
 
 void neg_class::code(ostream &s) 
