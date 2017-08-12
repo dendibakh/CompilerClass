@@ -943,7 +943,25 @@ int CgenClassTable::calculateAttrSize(CgenNodeP cl)
 void CgenClassTable::emitClassNameTab()
 {
   str << CLASSNAMETAB << LABEL;
-  for(List<CgenNode> *l = nds; l; l = l->tl())
+  std::map<int, Symbol> classTagsRev;
+
+  for (std::map<Symbol, int>::iterator it = classTags.begin(); it != classTags.end(); ++it)
+  {
+	classTagsRev[it->second] = it->first;
+  }
+
+  for (std::map<int, Symbol>::iterator it = classTagsRev.begin(); it != classTagsRev.end(); ++it)
+  {
+	StringEntry* entry = stringtable.lookup_string(it->second->get_string());
+     	if (entry)
+	{
+		str << WORD; 
+		entry->code_ref(str);
+		str << endl;
+	}
+  }
+
+  /*for(List<CgenNode> *l = nds; l; l = l->tl())
   {
      StringEntry* entry = stringtable.lookup_string(l->hd()->name->get_string());
      if (entry)
@@ -952,7 +970,7 @@ void CgenClassTable::emitClassNameTab()
         entry->code_ref(str);
         str << endl;
      }
-  }
+  }*/
 }
 
 void CgenClassTable::emitDispTab()
