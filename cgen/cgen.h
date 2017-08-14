@@ -4,6 +4,7 @@
 #include "cool-tree.h"
 #include "symtab.h"
 #include <map>
+#include <vector>
 
 enum Basicness     {Basic, NotBasic};
 #define TRUE 1
@@ -26,6 +27,7 @@ private:
    int classTagInc;
    std::map<Symbol, int> classTags;
 
+   std::vector<attr_class*> attrsToInit;
 
 // The following methods emit code for
 // constants and global declarations.
@@ -55,8 +57,8 @@ private:
 
    void emitClassNameTab();
    void emitDispTab();
-   void emitDispTabWithParents(CgenNodeP cl);
-   void generateClassDispTab(CgenNodeP cl);
+   void emitDispTabWithParents(CgenNodeP cl, std::vector<Symbol>& classDispTab);
+   void generateClassDispTab(CgenNodeP cl, std::vector<Symbol>& classDispTab);
 
    void emitClassObjTab();
    void generateInitMethods();

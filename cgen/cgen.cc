@@ -24,7 +24,7 @@
 
 #include "cgen.h"
 #include "cgen_gc.h"
-#include <vector>
+#include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
 const int cgen_debug = 0;
@@ -112,6 +112,32 @@ static char *gc_init_names[] =
 static char *gc_collect_names[] =
   { "_NoGC_Collect", "_GenGC_Collect", "_ScnGC_Collect" };
 
+
+namespace
+{
+	Symbol cur_class;
+	std::map<Symbol, std::vector<Symbol> > dispTabs;
+
+	unsigned getClassDispTabOffset(Symbol cl, Symbol method)
+	{
+		std::map<Symbol, std::vector<Symbol> >::iterator iter = dispTabs.find(cl);
+		if (iter != dispTabs.end())
+		{
+			std::vector<Symbol>::iterator index = std::find(iter->second.begin(), iter->second.end(), method);
+			if (index != iter->second.end())
+				return index - iter->second.begin();
+			else
+			   cout << "method " << method << " in class " << cl << " not found.";
+		}
+		else
+		{
+		//if (cgen_debug) 
+		   cout << "class not found: " << cl;
+		}
+	
+		return 0;
+	}
+}
 
 //  BoolConst is a class that implements code generation for operations
 //  on the two booleans, which are given global names here.
@@ -943,7 +969,36 @@ int CgenClassTable::calculateAttrSize(CgenNodeP cl)
 void CgenClassTable::emitClassNameTab()
 {
   str << CLASSNAMETAB << LABEL;
-  std::map<int, Symbol> classTagsRev;
+
+  std::vector<CgenNodeP> v;
+  v.push_back(root());
+  
+  while (!v.empty())
+  {
+	for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
+	{
+		StringEntry* entry = stringtable.lookup_string((*i)->name->get_string());
+	     	if (entry)
+		{
+			str << WORD; 
+			entry->code_ref(str);
+			str << endl;
+		}
+	}
+
+	std::vector<CgenNodeP> temp;
+
+	for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
+	{
+		for(List<CgenNode>* l = (*i)->get_children(); l; l = l->tl())
+		{
+			temp.push_back(l->hd());
+		}
+	}
+	v = temp;
+  }
+
+/*  std::map<int, Symbol> classTagsRev;
 
   for (std::map<Symbol, int>::iterator it = classTags.begin(); it != classTags.end(); ++it)
   {
@@ -959,7 +1014,7 @@ void CgenClassTable::emitClassNameTab()
 		entry->code_ref(str);
 		str << endl;
 	}
-  }
+  }*/
 
   /*for(List<CgenNode> *l = nds; l; l = l->tl())
   {
@@ -976,31 +1031,36 @@ void CgenClassTable::emitClassNameTab()
 void CgenClassTable::emitDispTab()
 {
   str << Object << DISPTAB_SUFFIX << LABEL;
-  generateClassDispTab(lookup(Object));
+  {
+	  std::map<Symbol, std::vector<Symbol> >::iterator classDispTab = dispTabs.insert(std::make_pair(Object, std::vector<Symbol>() ) ).first;
+	  generateClassDispTab(lookup(Object), classDispTab->second);
+  }
 
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
      if (l->hd()->name != Object)
      {
        str << l->hd()->name << DISPTAB_SUFFIX << LABEL;
-       emitDispTabWithParents(l->hd());
+
+	std::map<Symbol, std::vector<Symbol> >::iterator classDispTab = dispTabs.insert(std::make_pair(l->hd()->name, std::vector<Symbol>() ) ).first;
+	emitDispTabWithParents(l->hd(), classDispTab->second);
      }
   }
 }
 
-void CgenClassTable::emitDispTabWithParents(CgenNodeP cl)
+void CgenClassTable::emitDispTabWithParents(CgenNodeP cl, std::vector<Symbol>& classDispTab)
 {
 	if (cl->name == No_class)
 		return;
 	if (cl->name == prim_slot)
 		return;
 	
-	emitDispTabWithParents(cl->get_parentnd());
-	generateClassDispTab(cl);
+	emitDispTabWithParents(cl->get_parentnd(), classDispTab);
+	generateClassDispTab(cl, classDispTab);
 	// todo: Some methods could be overwritten in derived classes. Fix that.
 }
 
-void CgenClassTable::generateClassDispTab(CgenNodeP cl)
+void CgenClassTable::generateClassDispTab(CgenNodeP cl, std::vector<Symbol>& classDispTab)
 {
 	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
 	{
@@ -1008,6 +1068,7 @@ void CgenClassTable::generateClassDispTab(CgenNodeP cl)
 		if (meth_ptr)
 		{
 			str << WORD << cl->name << METHOD_SEP << meth_ptr->name << endl;
+			classDispTab.push_back(meth_ptr->name);
 		}
 	}
 }
@@ -1057,7 +1118,8 @@ void CgenClassTable::generateInitMethods()
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
      if (l->hd()->name != Object)
-	generateInitMethodForClass(l->hd()->name);
+	     if (l->hd()->basic())
+		generateInitMethodForClass(l->hd()->name);
   }
 }
 
@@ -1077,6 +1139,14 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
 	     emit_jal((char*)s.c_str(), str);
 		// todo: Classes could be derived not necessary from Object.
      }
+     if(!attrsToInit.empty())
+     {
+	for (std::vector<attr_class*>::iterator i = attrsToInit.begin(); i != attrsToInit.end(); ++i)
+	{
+		(*i)->init->code(str);
+	}
+     }
+
      emit_move(ACC, SELF, str);
      emit_load(FP,3,SP,str);
      emit_load(SELF,2,SP,str);
@@ -1091,6 +1161,8 @@ void CgenClassTable::generateClassMethods()
   {
      if (!l->hd()->basic())
      {
+	cur_class = l->hd()->name;
+	attrsToInit.clear();
 	for(int i = l->hd()->features->first(); l->hd()->features->more(i); i = l->hd()->features->next(i))
 	{
 		method_class* meth_ptr = dynamic_cast<method_class*>(l->hd()->features->nth(i));
@@ -1099,7 +1171,13 @@ void CgenClassTable::generateClassMethods()
 			str << l->hd()->name << METHOD_SEP << meth_ptr->name << LABEL;
 			generateCodeForClassMethod(meth_ptr);
 		}
+		attr_class* attr_ptr = dynamic_cast<attr_class*>(l->hd()->features->nth(i));
+		if (attr_ptr)
+		{
+			attrsToInit.push_back(attr_ptr);
+		}
 	}
+	generateInitMethodForClass(l->hd()->name);
      }
   }
 }
@@ -1110,9 +1188,9 @@ void CgenClassTable::generateCodeForClassMethod(method_class* meth_ptr)
      emit_store(FP,3,SP,str);
      emit_store(SELF,2,SP,str);
      emit_store(RA,1,SP,str);
-     emit_addiu(FP,SP,4,str);
-     emit_move(SELF, ACC, str);
-     emit_move(ACC, SELF, str);
+     //emit_addiu(FP,SP,4,str);
+     //emit_move(SELF, ACC, str);
+     //emit_move(ACC, SELF, str);
 	
      meth_ptr->expr->code(str);
 
@@ -1191,9 +1269,9 @@ void dispatch_class::code(ostream &s)
 		}
 
 		// calling the function and saving return address in $ra
-		std::string str = "_dispatch_";
-		str += name->get_string();
-		emit_jal((char*)str.c_str(), s);		
+		emit_load(T1, 2, SELF, s); // load dispatch table
+		emit_load(T1, getClassDispTabOffset(cur_class, name), T1, s); // load function address								
+		emit_jalr(T1, s); // call the function		
 	}
 }
 
@@ -1222,7 +1300,7 @@ void plus_class::code(ostream &s)
 	e1->code(s);
 	emit_push(ACC, s);
 	e2->code(s);
-	emit_load(T1,4,SP,s);
+	emit_load(T1,1,SP,s);
 	emit_add(ACC, T1, ACC, s);
 	emit_addiu(SP,SP,4,s);
 }
@@ -1232,7 +1310,7 @@ void sub_class::code(ostream &s)
 	e1->code(s);
 	emit_push(ACC, s);
 	e2->code(s);
-	emit_load(T1,4,SP,s);
+	emit_load(T1,1,SP,s);
 	emit_sub(ACC, T1, ACC, s);
 	emit_addiu(SP,SP,4,s);
 }
@@ -1242,7 +1320,7 @@ void mul_class::code(ostream &s)
 	e1->code(s);
 	emit_push(ACC, s);
 	e2->code(s);
-	emit_load(T1,4,SP,s);
+	emit_load(T1,1,SP,s);
 	emit_mul(ACC, T1, ACC, s);
 	emit_addiu(SP,SP,4,s);
 }
@@ -1252,7 +1330,7 @@ void divide_class::code(ostream &s)
 	e1->code(s);
 	emit_push(ACC, s);
 	e2->code(s);
-	emit_load(T1,4,SP,s);
+	emit_load(T1,1,SP,s);
 	emit_div(ACC, T1, ACC, s);
 	emit_addiu(SP,SP,4,s);
 }
