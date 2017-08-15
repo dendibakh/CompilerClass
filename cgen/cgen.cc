@@ -27,7 +27,7 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 0;
+const int cgen_debug = 1;
 const int size_debug = 0;
 const int cgen_comments = 1;
 
@@ -118,6 +118,7 @@ namespace
 {
 	Symbol cur_class;
 	std::map<Symbol, std::vector<Symbol> > dispTabs;
+	std::map<Symbol, std::vector<Symbol> > attrs;
 
 	unsigned getClassDispTabOffset(Symbol cl, Symbol method)
 	{
@@ -137,6 +138,26 @@ namespace
 		}
 	
 		return 0;
+	}
+
+	unsigned getClassAttrOffset(Symbol cl, Symbol attr)
+	{
+		std::map<Symbol, std::vector<Symbol> >::iterator iter = attrs.find(cl);
+		if (iter != attrs.end())
+		{
+			std::vector<Symbol>::iterator index = std::find(iter->second.begin(), iter->second.end(), attr);
+			if (index != iter->second.end())
+				return 3 + index - iter->second.begin();
+			else
+			   cout << "attribute " << attr << " in class " << cl << " not found.";
+		}
+		else
+		{
+		//if (cgen_debug) 
+		   cout << "class not found: " << cl;
+		}
+	
+		return 3;
 	}
 }
 
@@ -209,8 +230,6 @@ static void emit_load_bool(char *dest, const BoolConst& b, ostream& s)
 {
   emit_partial_load_address(dest,s);
   b.code_ref(s);
-  if (cgen_comments)
-  	s << COMMENT << " load bool const";
   s << endl;
 }
 
@@ -218,8 +237,6 @@ static void emit_load_string(char *dest, StringEntry *str, ostream& s)
 {
   emit_partial_load_address(dest,s);
   str->code_ref(s); 
-  if (cgen_comments)
-	  s << COMMENT << " load " << *str;
   s << endl;
 }
 
@@ -227,8 +244,6 @@ static void emit_load_int(char *dest, IntEntry *i, ostream& s)
 {
   emit_partial_load_address(dest,s);
   i->code_ref(s);
-  if (cgen_comments)
-	  s << COMMENT << " load " << *i;
   s << endl;
 }
 
@@ -876,6 +891,17 @@ void CgenClassTable::code()
   emitClassObjTab();
   emitDispTab();
   emitProtos();
+  storeAttrOffsets();
+
+  if (cgen_debug)
+  {
+	cout << "Attributes of " << MAINNAME << " :" << endl;
+	std::map<Symbol, std::vector<Symbol> >::iterator iter = attrs.find(idtable.lookup_string(MAINNAME));
+	for (std::vector<Symbol>::iterator i = iter->second.begin(); i != iter->second.end(); ++i)
+	{
+		cout << *i << "; offset: " << getClassAttrOffset(idtable.lookup_string(MAINNAME), *i) << endl;
+	}
+  }
 
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
@@ -971,6 +997,53 @@ int CgenClassTable::calculateAttrSize(CgenNodeP cl)
 	}
 
    return parents + own;	
+}
+
+void CgenClassTable::storeAttrOffsets()
+{
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+  {
+     if (!l->hd()->basic())
+     {
+	std::map<Symbol, std::vector<Symbol> >::iterator attr = attrs.insert(std::make_pair(l->hd()->name, std::vector<Symbol>() ) ).first;
+	storeAttrOffsetsWithParents(l->hd(), attr->second);
+     }
+  }
+}
+
+void CgenClassTable::storeAttrOffsetsWithParents(CgenNodeP cl, std::vector<Symbol>& vect)
+{
+   if (cl->name == No_class)
+	return;
+   if (cl->name == prim_slot)
+	return;
+   if (cl->name == Str)
+   {
+	vect.push_back(val);
+	vect.push_back(str_field);
+	return;
+   }
+   if (cl->name == Int)
+   {
+	vect.push_back(val);
+	return;
+   }
+   if (cl->name == Bool)
+   {
+	vect.push_back(val);
+	return;
+   }
+
+   storeAttrOffsetsWithParents(cl->get_parentnd(), vect);
+
+	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
+	{
+		attr_class* attr_ptr = dynamic_cast<attr_class*>(cl->features->nth(i));
+		if (attr_ptr)
+		{
+			vect.push_back(attr_ptr->name);
+		}
+	}
 }
 
 void CgenClassTable::emitClassNameTab()
@@ -1154,6 +1227,7 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
 	for (std::vector<attr_class*>::iterator i = attrsToInit.begin(); i != attrsToInit.end(); ++i)
 	{
 		(*i)->init->code(str);
+		emit_store(ACC, 3 + i - attrsToInit.begin(), SELF, str);
 	}
      }
 
@@ -1250,7 +1324,10 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //
 //*****************************************************************
 
-void assign_class::code(ostream &s) {
+void assign_class::code(ostream &s) 
+{
+	if (cgen_comments)
+	  s << COMMENT << " coding assign to " << name << endl;
 }
 
 void static_dispatch_class::code(ostream &s) {
@@ -1342,11 +1419,16 @@ void plus_class::code(ostream &s)
   if (cgen_comments)
 	  s << COMMENT << " coding plus begin" << endl;
 	e1->code(s);
+	emit_load(ACC, 3, ACC, s);
 	emit_push(ACC, s);
 	e2->code(s);
+	emit_load(ACC, 3, ACC, s);
 	emit_load(T1,1,SP,s);
-	emit_add(ACC, T1, ACC, s);
 	emit_addiu(SP,SP,4,s);
+	emit_add(T1, T1, ACC, s); // doing addition of 2 integers
+	emit_load_int(ACC,inttable.lookup_string("0"),s);
+	emit_jal("Object.copy", s); // generate a temporary
+	emit_store(T1,3,ACC,s); // assigning the result
   if (cgen_comments)
 	  s << COMMENT << " coding plus end" << endl;
 }
@@ -1354,31 +1436,46 @@ void plus_class::code(ostream &s)
 void sub_class::code(ostream &s) 
 {
 	e1->code(s);
+	emit_load(ACC, 3, ACC, s);
 	emit_push(ACC, s);
 	e2->code(s);
+	emit_load(ACC, 3, ACC, s);
 	emit_load(T1,1,SP,s);
-	emit_sub(ACC, T1, ACC, s);
 	emit_addiu(SP,SP,4,s);
+	emit_sub(T1, T1, ACC, s); // doing addition of 2 integers
+	emit_load_int(ACC,inttable.lookup_string("0"),s);
+	emit_jal("Object.copy", s); // generate a temporary
+	emit_store(T1,3,ACC,s); // assigning the result
 }
 
 void mul_class::code(ostream &s) 
 {
 	e1->code(s);
+	emit_load(ACC, 3, ACC, s);
 	emit_push(ACC, s);
 	e2->code(s);
+	emit_load(ACC, 3, ACC, s);
 	emit_load(T1,1,SP,s);
-	emit_mul(ACC, T1, ACC, s);
 	emit_addiu(SP,SP,4,s);
+	emit_mul(T1, T1, ACC, s); // doing addition of 2 integers
+	emit_load_int(ACC,inttable.lookup_string("0"),s);
+	emit_jal("Object.copy", s); // generate a temporary
+	emit_store(T1,3,ACC,s); // assigning the result
 }
 
 void divide_class::code(ostream &s) 
 {
 	e1->code(s);
+	emit_load(ACC, 3, ACC, s);
 	emit_push(ACC, s);
 	e2->code(s);
+	emit_load(ACC, 3, ACC, s);
 	emit_load(T1,1,SP,s);
-	emit_div(ACC, T1, ACC, s);
 	emit_addiu(SP,SP,4,s);
+	emit_div(T1, T1, ACC, s); // doing addition of 2 integers
+	emit_load_int(ACC,inttable.lookup_string("0"),s);
+	emit_jal("Object.copy", s); // generate a temporary
+	emit_store(T1,3,ACC,s); // assigning the result
 }
 
 void neg_class::code(ostream &s) 
@@ -1403,16 +1500,22 @@ void int_const_class::code(ostream& s)
   //
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
   //
-  emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
+  if (cgen_comments)
+	  s << COMMENT << " load " << token->get_string() << endl;
+  emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);  
 }
 
 void string_const_class::code(ostream& s)
 {
+  if (cgen_comments)
+	  s << COMMENT << " load " << token->get_string() << endl;
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
 void bool_const_class::code(ostream& s)
 {
+  if (cgen_comments)
+	  s << COMMENT << " load " << val << endl;
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
@@ -1425,7 +1528,11 @@ void isvoid_class::code(ostream &s) {
 void no_expr_class::code(ostream &s) {
 }
 
-void object_class::code(ostream &s) {
+void object_class::code(ostream &s) 
+{
+  if (cgen_comments)
+	  s << COMMENT << " coding object " << name << endl;
+  emit_load(ACC, getClassAttrOffset(cur_class, name), SELF, s);
 }
 
 

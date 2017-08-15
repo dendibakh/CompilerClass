@@ -67,6 +67,9 @@ private:
    void generateClassMethods();
    void generateCodeForClassMethod(method_class* meth_ptr);
 
+   void storeAttrOffsets();
+   void storeAttrOffsetsWithParents(CgenNodeP cl, std::vector<Symbol>& vect);
+
 public:
    CgenClassTable(Classes, ostream& str);
    void code();
