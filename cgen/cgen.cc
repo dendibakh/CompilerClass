@@ -1132,13 +1132,16 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
      emit_store(RA,1,SP,str);
      emit_addiu(FP,SP,4,str);
      emit_move(SELF, ACC, str);
-     if (cl != Object)
+
+     // Call to initialize parent object     
+     CgenNodeP c = lookup(cl);
+     if (c->get_parentnd()->name != No_class)
      {
-	     std::string s = Object->get_string();
+	     std::string s = c->get_parentnd()->name->get_string();
 	     s += CLASSINIT_SUFFIX;
 	     emit_jal((char*)s.c_str(), str);
-		// todo: Classes could be derived not necessary from Object.
      }
+
      if(!attrsToInit.empty())
      {
 	for (std::vector<attr_class*>::iterator i = attrsToInit.begin(); i != attrsToInit.end(); ++i)
@@ -1165,12 +1168,6 @@ void CgenClassTable::generateClassMethods()
 	attrsToInit.clear();
 	for(int i = l->hd()->features->first(); l->hd()->features->more(i); i = l->hd()->features->next(i))
 	{
-		method_class* meth_ptr = dynamic_cast<method_class*>(l->hd()->features->nth(i));
-		if (meth_ptr)
-		{
-			str << l->hd()->name << METHOD_SEP << meth_ptr->name << LABEL;
-			generateCodeForClassMethod(meth_ptr);
-		}
 		attr_class* attr_ptr = dynamic_cast<attr_class*>(l->hd()->features->nth(i));
 		if (attr_ptr)
 		{
@@ -1178,6 +1175,16 @@ void CgenClassTable::generateClassMethods()
 		}
 	}
 	generateInitMethodForClass(l->hd()->name);
+	for(int i = l->hd()->features->first(); l->hd()->features->more(i); i = l->hd()->features->next(i))
+	{
+		method_class* meth_ptr = dynamic_cast<method_class*>(l->hd()->features->nth(i));
+		if (meth_ptr)
+		{
+			str << l->hd()->name << METHOD_SEP << meth_ptr->name << LABEL;
+			generateCodeForClassMethod(meth_ptr);
+		}
+	}
+	
      }
   }
 }
