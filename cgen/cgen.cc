@@ -29,6 +29,7 @@
 extern void emit_string_constant(ostream& str, char *s);
 const int cgen_debug = 0;
 const int size_debug = 0;
+const int cgen_comments = 1;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -208,13 +209,17 @@ static void emit_load_bool(char *dest, const BoolConst& b, ostream& s)
 {
   emit_partial_load_address(dest,s);
   b.code_ref(s);
+  if (cgen_comments)
+  	s << COMMENT << " load bool const";
   s << endl;
 }
 
 static void emit_load_string(char *dest, StringEntry *str, ostream& s)
 {
   emit_partial_load_address(dest,s);
-  str->code_ref(s);
+  str->code_ref(s); 
+  if (cgen_comments)
+	  s << COMMENT << " load " << *str;
   s << endl;
 }
 
@@ -222,6 +227,8 @@ static void emit_load_int(char *dest, IntEntry *i, ostream& s)
 {
   emit_partial_load_address(dest,s);
   i->code_ref(s);
+  if (cgen_comments)
+	  s << COMMENT << " load " << *i;
   s << endl;
 }
 
@@ -1191,20 +1198,23 @@ void CgenClassTable::generateClassMethods()
 
 void CgenClassTable::generateCodeForClassMethod(method_class* meth_ptr)
 {
-     emit_addiu(SP,SP,-12,str);
+	// Try to push the frame to the stack only in dispatch method!
+
+
+     /*emit_addiu(SP,SP,-12,str);
      emit_store(FP,3,SP,str);
      emit_store(SELF,2,SP,str);
-     emit_store(RA,1,SP,str);
+     emit_store(RA,1,SP,str);*/
      //emit_addiu(FP,SP,4,str);
      //emit_move(SELF, ACC, str);
      //emit_move(ACC, SELF, str);
 	
      meth_ptr->expr->code(str);
 
-     emit_load(FP,3,SP,str);
+     /*emit_load(FP,3,SP,str);
      emit_load(SELF,2,SP,str);
      emit_load(RA,1,SP,str);
-     emit_addiu(SP,SP,12,str);
+     emit_addiu(SP,SP,12,str);*/
      emit_return(str);
 }
 
@@ -1265,9 +1275,19 @@ void dispatch_class::code(ostream &s)
 	}
 	else
 	{
+		if (cgen_comments)
+		  s << COMMENT << " coding dispatch begin" << endl;
+		if (cgen_comments)
+		  s << COMMENT << " \t saving callee's frame pointer" << endl;
 		// saving callee's frame pointer
-		emit_push(FP, s);
+		//emit_push(FP, s);
+		emit_addiu(SP,SP,-12,s);
+     		emit_store(FP,3,SP,s);
+		emit_store(SELF,2,SP,s);
+		emit_store(RA,1,SP,s);
 
+		if (cgen_comments)
+		  s << COMMENT << " \t pushing arguments to the stack" << endl;
 		// pushing arguments to the stack
 		for(int i = actual->first(); actual->more(i); i = actual->next(i))
 		{
@@ -1275,10 +1295,25 @@ void dispatch_class::code(ostream &s)
 			emit_push(ACC, s);
 		}
 
+		if (cgen_comments)
+		  s << COMMENT << " \t calling " << cur_class << "::" << name << endl;
 		// calling the function and saving return address in $ra
 		emit_load(T1, 2, SELF, s); // load dispatch table
 		emit_load(T1, getClassDispTabOffset(cur_class, name), T1, s); // load function address								
-		emit_jalr(T1, s); // call the function		
+		emit_jalr(T1, s); // call the function	
+
+		for(int i = actual->first(); actual->more(i); i = actual->next(i))
+		{
+			emit_addiu(SP,SP,4,s);
+		}
+
+		emit_load(FP,3,SP,s);
+		emit_load(SELF,2,SP,s);
+		emit_load(RA,1,SP,s);
+		emit_addiu(SP,SP,12,s);	
+
+		if (cgen_comments)
+		  s << COMMENT << " coding dispatch end" << endl;
 	}
 }
 
@@ -1304,12 +1339,16 @@ void let_class::code(ostream &s) {
 
 void plus_class::code(ostream &s) 
 {
+  if (cgen_comments)
+	  s << COMMENT << " coding plus begin" << endl;
 	e1->code(s);
 	emit_push(ACC, s);
 	e2->code(s);
 	emit_load(T1,1,SP,s);
 	emit_add(ACC, T1, ACC, s);
 	emit_addiu(SP,SP,4,s);
+  if (cgen_comments)
+	  s << COMMENT << " coding plus end" << endl;
 }
 
 void sub_class::code(ostream &s) 

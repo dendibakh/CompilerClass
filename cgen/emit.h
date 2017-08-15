@@ -39,6 +39,7 @@
 
 #define EMPTYSLOT            0
 #define LABEL                ":\n"
+#define COMMENT              "\t# "
 
 #define STRINGNAME (char *) "String"
 #define INTNAME    (char *) "Int"
