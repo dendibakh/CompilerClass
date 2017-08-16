@@ -118,7 +118,7 @@ namespace
 {
 	Symbol cur_class;
 	std::map<Symbol, std::vector<Symbol> > dispTabs;
-	std::map<Symbol, std::vector<Symbol> > attrs;
+	std::map<Symbol, std::vector<attr_class*> > attrs;
 
 	unsigned getClassDispTabOffset(Symbol cl, Symbol method)
 	{
@@ -142,14 +142,15 @@ namespace
 
 	unsigned getClassAttrOffset(Symbol cl, Symbol attr)
 	{
-		std::map<Symbol, std::vector<Symbol> >::iterator iter = attrs.find(cl);
+		std::map<Symbol, std::vector<attr_class*> >::iterator iter = attrs.find(cl);
 		if (iter != attrs.end())
 		{
-			std::vector<Symbol>::iterator index = std::find(iter->second.begin(), iter->second.end(), attr);
-			if (index != iter->second.end())
-				return 3 + index - iter->second.begin();
-			else
-			   cout << "attribute " << attr << " in class " << cl << " not found.";
+			for (std::vector<attr_class*>::iterator i = iter->second.begin(); i != iter->second.end(); ++i)
+			{
+				if ((*i)->name == attr)
+					return 3 + i - iter->second.begin();
+			}
+			cout << "attribute " << attr << " in class " << cl << " not found.";
 		}
 		else
 		{
@@ -887,19 +888,20 @@ void CgenClassTable::code()
 
   assignClassTags();
 
+  storeAttrOffsets();
+
   emitClassNameTab();
   emitClassObjTab();
   emitDispTab();
   emitProtos();
-  storeAttrOffsets();
 
   if (cgen_debug)
   {
 	cout << "Attributes of " << MAINNAME << " :" << endl;
-	std::map<Symbol, std::vector<Symbol> >::iterator iter = attrs.find(idtable.lookup_string(MAINNAME));
-	for (std::vector<Symbol>::iterator i = iter->second.begin(); i != iter->second.end(); ++i)
+	std::map<Symbol, std::vector<attr_class*> >::iterator iter = attrs.find(idtable.lookup_string(MAINNAME));
+	for (std::vector<attr_class*>::iterator i = iter->second.begin(); i != iter->second.end(); ++i)
 	{
-		cout << *i << "; offset: " << getClassAttrOffset(idtable.lookup_string(MAINNAME), *i) << endl;
+		cout << (*i)->name << "; offset: " << getClassAttrOffset(idtable.lookup_string(MAINNAME), (*i)->name) << endl;
 	}
   }
 
@@ -936,7 +938,12 @@ void CgenClassTable::emitProtos()
   emitOneProtObj(lookup(Object));
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
-	if (l->hd()->name != Object)
+	if (l->hd()->basic() && (l->hd()->name != Object))
+		emitOneProtObj(l->hd());
+  }
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+  {
+	if (!l->hd()->basic())
 		emitOneProtObj(l->hd());
   }
 }
@@ -949,14 +956,51 @@ void CgenClassTable::emitOneProtObj(CgenNodeP cl)
      str << WORD << calculateClassSize(cl) << endl; // size
      str << WORD << cl->name << DISPTAB_SUFFIX << endl;
 
-     // todo: fill the layout of objects
+     fillObjectLayout(cl);
+}
 
-     if (cl->name == Str)
-	str << WORD << INTCONST_PREFIX << "0" << endl << WORD << "0" << endl;
-     if (cl->name == Int)
-	str << WORD << "0" << endl;
-     if (cl->name == Bool)
-	str << WORD << "0" << endl;	
+void CgenClassTable::fillObjectLayout(CgenNodeP cl)
+{
+	if (cl->name == No_class)
+		return;
+
+	fillObjectLayout(cl->get_parentnd());
+	
+	if (cl->name == Str)
+	{
+		str << WORD << INTCONST_PREFIX << "0" << endl << WORD << "0" << endl;
+		return;
+	}
+	else if (cl->name == Int)
+	{
+		str << WORD << "0" << endl;
+		return;
+	}
+	else if (cl->name == Bool)
+	{
+		str << WORD << "0" << endl;
+		return;
+	}
+	else 
+	{
+		cout << "fillObjectLayout: " << cl->name << endl;
+		std::map<Symbol, std::vector<attr_class*> >::iterator iter = attrs.find(cl->name);
+		if (iter != attrs.end())
+		{
+			for (std::vector<attr_class*>::iterator i = iter->second.begin(); i != iter->second.end(); ++i)
+			{
+				str << WORD << (*i)->type_decl << PROTOBJ_SUFFIX << endl;
+				/*if (*i == Str)
+					str << WORD << INTCONST_PREFIX << "0" << endl << WORD << "0" << endl;
+				else if (*i == Int)
+					str << WORD << "0" << endl;
+				else if (*i == Bool)
+					str << WORD << "0" << endl;
+				else*/
+					;// 
+			}
+		}
+	}
 }
 
 int CgenClassTable::calculateClassSize(CgenNodeP cl)
@@ -1005,19 +1049,19 @@ void CgenClassTable::storeAttrOffsets()
   {
      if (!l->hd()->basic())
      {
-	std::map<Symbol, std::vector<Symbol> >::iterator attr = attrs.insert(std::make_pair(l->hd()->name, std::vector<Symbol>() ) ).first;
+	std::map<Symbol, std::vector<attr_class*> >::iterator attr = attrs.insert(std::make_pair(l->hd()->name, std::vector<attr_class*>() ) ).first;
 	storeAttrOffsetsWithParents(l->hd(), attr->second);
      }
   }
 }
 
-void CgenClassTable::storeAttrOffsetsWithParents(CgenNodeP cl, std::vector<Symbol>& vect)
+void CgenClassTable::storeAttrOffsetsWithParents(CgenNodeP cl, std::vector<attr_class*>& vect)
 {
    if (cl->name == No_class)
 	return;
    if (cl->name == prim_slot)
 	return;
-   if (cl->name == Str)
+   /*if (cl->name == Str)
    {
 	vect.push_back(val);
 	vect.push_back(str_field);
@@ -1032,7 +1076,7 @@ void CgenClassTable::storeAttrOffsetsWithParents(CgenNodeP cl, std::vector<Symbo
    {
 	vect.push_back(val);
 	return;
-   }
+   }*/
 
    storeAttrOffsetsWithParents(cl->get_parentnd(), vect);
 
@@ -1041,7 +1085,7 @@ void CgenClassTable::storeAttrOffsetsWithParents(CgenNodeP cl, std::vector<Symbo
 		attr_class* attr_ptr = dynamic_cast<attr_class*>(cl->features->nth(i));
 		if (attr_ptr)
 		{
-			vect.push_back(attr_ptr->name);
+			vect.push_back(attr_ptr);
 		}
 	}
 }
@@ -1077,35 +1121,6 @@ void CgenClassTable::emitClassNameTab()
 	}
 	v = temp;
   }
-
-/*  std::map<int, Symbol> classTagsRev;
-
-  for (std::map<Symbol, int>::iterator it = classTags.begin(); it != classTags.end(); ++it)
-  {
-	classTagsRev[it->second] = it->first;
-  }
-
-  for (std::map<int, Symbol>::iterator it = classTagsRev.begin(); it != classTagsRev.end(); ++it)
-  {
-	StringEntry* entry = stringtable.lookup_string(it->second->get_string());
-     	if (entry)
-	{
-		str << WORD; 
-		entry->code_ref(str);
-		str << endl;
-	}
-  }*/
-
-  /*for(List<CgenNode> *l = nds; l; l = l->tl())
-  {
-     StringEntry* entry = stringtable.lookup_string(l->hd()->name->get_string());
-     if (entry)
-     {
-	str << WORD; 
-        entry->code_ref(str);
-        str << endl;
-     }
-  }*/
 }
 
 void CgenClassTable::emitDispTab()
@@ -1156,28 +1171,6 @@ void CgenClassTable::generateClassDispTab(CgenNodeP cl, std::vector<Symbol>& cla
 void CgenClassTable::emitClassObjTab()
 {
   str << CLASSOBJTAB << LABEL;
-  /*std::vector<CgenNodeP> v;
-  v.push_back(root());
-  
-  while (!v.empty())
-  {
-	for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
-	{
-		str << WORD << (*i)->name << PROTOBJ_SUFFIX << endl;
-		str << WORD << (*i)->name << CLASSINIT_SUFFIX << endl;
-	}
-
-	std::vector<CgenNodeP> temp;
-
-	for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
-	{
-		for(List<CgenNode>* l = (*i)->get_children(); l; l = l->tl())
-		{
-			temp.push_back(l->hd());
-		}
-	}
-	v = temp;
-  }*/
   std::map<int, Symbol> classTagsRev;
 
   for (std::map<Symbol, int>::iterator it = classTags.begin(); it != classTags.end(); ++it)
@@ -1275,20 +1268,20 @@ void CgenClassTable::generateCodeForClassMethod(method_class* meth_ptr)
 	// Try to push the frame to the stack only in dispatch method!
 
 
-     /*emit_addiu(SP,SP,-12,str);
+     emit_addiu(SP,SP,-12,str);
      emit_store(FP,3,SP,str);
      emit_store(SELF,2,SP,str);
-     emit_store(RA,1,SP,str);*/
+     emit_store(RA,1,SP,str);
      //emit_addiu(FP,SP,4,str);
      //emit_move(SELF, ACC, str);
      //emit_move(ACC, SELF, str);
 	
      meth_ptr->expr->code(str);
 
-     /*emit_load(FP,3,SP,str);
+     emit_load(FP,3,SP,str);
      emit_load(SELF,2,SP,str);
      emit_load(RA,1,SP,str);
-     emit_addiu(SP,SP,12,str);*/
+     emit_addiu(SP,SP,12,str);
      emit_return(str);
 }
 
@@ -1381,7 +1374,8 @@ void dispatch_class::code(ostream &s)
 
 		for(int i = actual->first(); actual->more(i); i = actual->next(i))
 		{
-			emit_addiu(SP,SP,4,s);
+			// for IO::out_int top of the stack will be poped automatically
+			//emit_addiu(SP,SP,4,s);
 		}
 
 		emit_load(FP,3,SP,s);
