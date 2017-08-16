@@ -1,0 +1,6 @@
+reinitialize
+read "/home/dbakhval/workspace/Compilers/PA5/grading/interaction-attrinit-method.s"
+read "interaction-attrinit-method.s"
+breakpoint Main_init
+breakpoint 0x004013b8
+breakpoint Main.f
