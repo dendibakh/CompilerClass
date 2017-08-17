@@ -1351,10 +1351,10 @@ void dispatch_class::code(ostream &s)
 		  s << COMMENT << " \t saving callee's frame pointer" << endl;
 		// saving callee's frame pointer
 		//emit_push(FP, s);
-		emit_addiu(SP,SP,-12,s);
+		/*emit_addiu(SP,SP,-12,s);
      		emit_store(FP,3,SP,s);
 		emit_store(SELF,2,SP,s);
-		emit_store(RA,1,SP,s);
+		emit_store(RA,1,SP,s);*/
 
 		if (cgen_comments)
 		  s << COMMENT << " \t pushing arguments to the stack" << endl;
@@ -1378,10 +1378,10 @@ void dispatch_class::code(ostream &s)
 			//emit_addiu(SP,SP,4,s);
 		}
 
-		emit_load(FP,3,SP,s);
+		/*emit_load(FP,3,SP,s);
 		emit_load(SELF,2,SP,s);
 		emit_load(RA,1,SP,s);
-		emit_addiu(SP,SP,12,s);	
+		emit_addiu(SP,SP,12,s);*/
 
 		if (cgen_comments)
 		  s << COMMENT << " coding dispatch end" << endl;
@@ -1418,10 +1418,12 @@ void plus_class::code(ostream &s)
 	e2->code(s);
 	emit_load(ACC, 3, ACC, s);
 	emit_load(T1,1,SP,s);
-	emit_addiu(SP,SP,4,s);
 	emit_add(T1, T1, ACC, s); // doing addition of 2 integers
+	emit_store(T1,1,SP,s); // saving the result on the stack
 	emit_load_int(ACC,inttable.lookup_string("0"),s);
 	emit_jal("Object.copy", s); // generate a temporary
+	emit_load(T1,1,SP,s); // taking result from the stack
+	emit_addiu(SP,SP,4,s);
 	emit_store(T1,3,ACC,s); // assigning the result
   if (cgen_comments)
 	  s << COMMENT << " coding plus end" << endl;
@@ -1435,10 +1437,12 @@ void sub_class::code(ostream &s)
 	e2->code(s);
 	emit_load(ACC, 3, ACC, s);
 	emit_load(T1,1,SP,s);
-	emit_addiu(SP,SP,4,s);
-	emit_sub(T1, T1, ACC, s); // doing addition of 2 integers
+	emit_sub(T1, T1, ACC, s); // doing math operation
+	emit_store(T1,1,SP,s); // saving the result on the stack
 	emit_load_int(ACC,inttable.lookup_string("0"),s);
 	emit_jal("Object.copy", s); // generate a temporary
+	emit_load(T1,1,SP,s); // taking result from the stack
+	emit_addiu(SP,SP,4,s);
 	emit_store(T1,3,ACC,s); // assigning the result
 }
 
@@ -1450,10 +1454,12 @@ void mul_class::code(ostream &s)
 	e2->code(s);
 	emit_load(ACC, 3, ACC, s);
 	emit_load(T1,1,SP,s);
-	emit_addiu(SP,SP,4,s);
-	emit_mul(T1, T1, ACC, s); // doing addition of 2 integers
+	emit_mul(T1, T1, ACC, s); // doing math operation
+	emit_store(T1,1,SP,s); // saving the result on the stack
 	emit_load_int(ACC,inttable.lookup_string("0"),s);
 	emit_jal("Object.copy", s); // generate a temporary
+	emit_load(T1,1,SP,s); // taking result from the stack
+	emit_addiu(SP,SP,4,s);
 	emit_store(T1,3,ACC,s); // assigning the result
 }
 
@@ -1465,10 +1471,12 @@ void divide_class::code(ostream &s)
 	e2->code(s);
 	emit_load(ACC, 3, ACC, s);
 	emit_load(T1,1,SP,s);
-	emit_addiu(SP,SP,4,s);
-	emit_div(T1, T1, ACC, s); // doing addition of 2 integers
+	emit_div(T1, T1, ACC, s); // doing math operation
+	emit_store(T1,1,SP,s); // saving the result on the stack
 	emit_load_int(ACC,inttable.lookup_string("0"),s);
 	emit_jal("Object.copy", s); // generate a temporary
+	emit_load(T1,1,SP,s); // taking result from the stack
+	emit_addiu(SP,SP,4,s);
 	emit_store(T1,3,ACC,s); // assigning the result
 }
 

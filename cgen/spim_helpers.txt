@@ -4,3 +4,4 @@ read "interaction-attrinit-method.s"
 breakpoint Main_init
 breakpoint 0x004013b8
 breakpoint Main.f
+breakpoint 0x004013cc
