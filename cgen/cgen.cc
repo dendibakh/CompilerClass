@@ -120,6 +120,7 @@ namespace
 	std::vector<Symbol> cur_agrs;
 	std::map<Symbol, std::vector<Symbol> > dispTabs;
 	std::map<Symbol, std::vector<attr_class*> > attrs;
+	int branchInc = 0;
 
 	unsigned getClassDispTabOffset(Symbol cl, Symbol method)
 	{
@@ -1392,10 +1393,6 @@ void assign_class::code(ostream &s)
 		expr->code(s); // la	$a0 int_const0
 		emit_store(ACC, getArgumentStackOffset(name), FP, s); //sw	$a0 <offset of the arg>($FP)
 	}
-	// check that it's attribute	
-	//	receive attr's offset
-	// else 
-	//	receive index on the stack 	
 }
 
 void static_dispatch_class::code(ostream &s) {
@@ -1405,7 +1402,7 @@ void dispatch_class::code(ostream &s)
 {
 	if (name == cool_abort)
 	{
-		emit_bne(ACC, ZERO, 0, s);
+		emit_bne(ACC, ZERO, branchInc, s);
 		emit_load_address(ACC, "str_const0", s);
 		emit_load_imm(T1, 1, s);
 
@@ -1413,10 +1410,12 @@ void dispatch_class::code(ostream &s)
 		str += name->get_string();
 		emit_jal((char*)str.c_str(), s);
 
-		emit_label_def(0, s);
+		emit_label_def(branchInc, s);
 		emit_load(T1, 2, ACC, s);
 		emit_load(T1, 0, T1, s);
 		emit_jalr(T1, s);
+
+		branchInc++;
 	}
 	else
 	{
@@ -1454,10 +1453,25 @@ void dispatch_class::code(ostream &s)
 	}
 }
 
-void cond_class::code(ostream &s) {
+void cond_class::code(ostream &s) 
+{
+/*	if (cgen_comments)
+	  s << COMMENT << " coding branch" << endl;
+*/
+	pred->code(s);
+	else_exp->code(s);
+	emit_branch(branchInc + 1, s);
+	emit_label_def(branchInc, s);
+	then_exp->code(s);
+	emit_label_def(branchInc + 1, s);
+
+	branchInc += 2; // 2 labels per if-then-else statement
 }
 
-void loop_class::code(ostream &s) {
+void loop_class::code(ostream &s) 
+{
+	if (cgen_comments)
+	  s << COMMENT << " coding loop" << endl;
 }
 
 void typcase_class::code(ostream &s) {
@@ -1506,7 +1520,17 @@ void neg_class::code(ostream &s)
 void lt_class::code(ostream &s) {
 }
 
-void eq_class::code(ostream &s) {
+void eq_class::code(ostream &s) 
+{
+	e1->code(s);
+	emit_load(ACC, 3, ACC, s);
+	emit_push(ACC, s);
+	e2->code(s);
+	emit_load(ACC, 3, ACC, s);
+	emit_load(T1,1,SP,s);
+	emit_addiu(SP,SP,4,s);
+
+	emit_beq(ACC, T1, branchInc, s);
 }
 
 void leq_class::code(ostream &s) {
@@ -1550,9 +1574,18 @@ void no_expr_class::code(ostream &s) {
 
 void object_class::code(ostream &s) 
 {
-  if (cgen_comments)
+  	if (cgen_comments)
 	  s << COMMENT << " coding object " << name << endl;
-  emit_load(ACC, getClassAttrOffset(cur_class, name), SELF, s);
+
+	if (isSymbolOneOfClassAttr(cur_class, name))
+	{
+		emit_load(ACC, getClassAttrOffset(cur_class, name), SELF, s);
+	}
+	else // lhs is an argument of the method
+	{
+		emit_load(ACC, getArgumentStackOffset(name), FP, s);
+	}
+  
 }
 
 
