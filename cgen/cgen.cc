@@ -27,9 +27,9 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 1;
+const int cgen_debug = 0;
 const int size_debug = 0;
-const int cgen_comments = 1;
+const int cgen_comments = 0;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -130,12 +130,13 @@ namespace
 			if (index != iter->second.end())
 				return index - iter->second.begin();
 			else
-			   cout << "method " << method << " in class " << cl << " not found.";
+				if (cgen_debug)
+				   cout << "method " << method << " in class " << cl << " not found.";
 		}
 		else
 		{
-		//if (cgen_debug) 
-		   cout << "class not found: " << cl;
+			if (cgen_debug) 
+			   cout << "class not found: " << cl;
 		}
 	
 		return 0;
@@ -151,12 +152,13 @@ namespace
 				if ((*i)->name == attr)
 					return 3 + i - iter->second.begin();
 			}
-			cout << "attribute " << attr << " in class " << cl << " not found.";
+			if (cgen_debug)
+				cout << "attribute " << attr << " in class " << cl << " not found.";
 		}
 		else
 		{
-		//if (cgen_debug) 
-		   cout << "class not found: " << cl;
+			if (cgen_debug) 
+			   cout << "class not found: " << cl;
 		}
 	
 		return 3;
@@ -182,7 +184,8 @@ namespace
 		if (index != cur_agrs.end())
 			return 3 + index - cur_agrs.begin();
 		else
-		   cout << "argument " << argName << " was not found.";
+			if (cgen_debug)
+			   cout << "argument " << argName << " was not found.";
 		return 3;
 	}
 }
@@ -1265,8 +1268,13 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
      {
 	for (std::vector<attr_class*>::iterator i = attrsToInit.begin(); i != attrsToInit.end(); ++i)
 	{
-		(*i)->init->code(str);
-		emit_store(ACC, 3 + i - attrsToInit.begin(), SELF, str);
+		no_expr_class* no_expr_ptr = dynamic_cast<no_expr_class*>((*i)->init);
+		if (!no_expr_ptr)
+		{
+			// if init differs from no_expr, code it
+			(*i)->init->code(str);
+			emit_store(ACC, 3 + i - attrsToInit.begin(), SELF, str);
+		}
 	}
      }
 
@@ -1325,7 +1333,7 @@ void CgenClassTable::generateCodeForClassMethod(method_class* meth_ptr)
      emit_store(SELF,2,SP,str);
      emit_store(RA,1,SP,str);
      emit_addiu(FP,SP,4,str);
-     //emit_move(SELF, ACC, str);
+     emit_move(SELF, ACC, str);
      //emit_move(ACC, SELF, str);
 	
      meth_ptr->expr->code(str);
