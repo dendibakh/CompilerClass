@@ -117,6 +117,7 @@ static char *gc_collect_names[] =
 namespace
 {
 	Symbol cur_class;
+	std::vector<Symbol> cur_agrs;
 	std::map<Symbol, std::vector<Symbol> > dispTabs;
 	std::map<Symbol, std::vector<attr_class*> > attrs;
 
@@ -158,6 +159,30 @@ namespace
 		   cout << "class not found: " << cl;
 		}
 	
+		return 3;
+	}
+
+	bool isSymbolOneOfClassAttr(Symbol cl, Symbol attr)
+	{
+		std::map<Symbol, std::vector<attr_class*> >::iterator iter = attrs.find(cl);
+		if (iter != attrs.end())
+		{
+			for (std::vector<attr_class*>::iterator i = iter->second.begin(); i != iter->second.end(); ++i)
+			{
+				if ((*i)->name == attr)
+					return true;
+			}
+		}
+		return false;
+	}
+
+	unsigned getArgumentStackOffset(Symbol argName)
+	{
+		std::vector<Symbol>::iterator index = std::find(cur_agrs.begin(), cur_agrs.end(), argName);
+		if (index != cur_agrs.end())
+			return 3 + index - cur_agrs.begin();
+		else
+		   cout << "argument " << argName << " was not found.";
 		return 3;
 	}
 }
@@ -405,6 +430,34 @@ static void emit_gc_check(char *source, ostream &s)
   s << JAL << "_gc_check" << endl;
 }
 
+namespace
+{
+	void emit_arithmetic_op(Expression e1, Expression e2, std::string op, ostream &s)
+	{
+		e1->code(s);
+		emit_load(ACC, 3, ACC, s);
+		emit_push(ACC, s);
+		e2->code(s);
+		emit_load(ACC, 3, ACC, s);
+		emit_load(T1,1,SP,s);
+
+		if (op == "add")
+			emit_add(T1, T1, ACC, s); 
+		else if (op == "sub")
+			emit_sub(T1, T1, ACC, s); 
+		else if (op == "mul")
+			emit_mul(T1, T1, ACC, s); 
+		else if (op == "div")
+			emit_div(T1, T1, ACC, s); 
+
+		emit_store(T1,1,SP,s); // saving the result on the stack
+		emit_load_int(ACC,inttable.lookup_string("0"),s);
+		emit_jal("Object.copy", s); // generate a temporary
+		emit_load(T1,1,SP,s); // taking result from the stack
+		emit_addiu(SP,SP,4,s);
+		emit_store(T1,3,ACC,s); // assigning the result
+	}
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -983,21 +1036,14 @@ void CgenClassTable::fillObjectLayout(CgenNodeP cl)
 	}
 	else 
 	{
-		cout << "fillObjectLayout: " << cl->name << endl;
+		if (cgen_debug)
+			cout << "fillObjectLayout: " << cl->name << endl;
 		std::map<Symbol, std::vector<attr_class*> >::iterator iter = attrs.find(cl->name);
 		if (iter != attrs.end())
 		{
 			for (std::vector<attr_class*>::iterator i = iter->second.begin(); i != iter->second.end(); ++i)
 			{
 				str << WORD << (*i)->type_decl << PROTOBJ_SUFFIX << endl;
-				/*if (*i == Str)
-					str << WORD << INTCONST_PREFIX << "0" << endl << WORD << "0" << endl;
-				else if (*i == Int)
-					str << WORD << "0" << endl;
-				else if (*i == Bool)
-					str << WORD << "0" << endl;
-				else*/
-					;// 
 			}
 		}
 	}
@@ -1254,6 +1300,15 @@ void CgenClassTable::generateClassMethods()
 		method_class* meth_ptr = dynamic_cast<method_class*>(l->hd()->features->nth(i));
 		if (meth_ptr)
 		{
+			cur_agrs.clear();
+			// store arguments offsets
+			for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
+		  	{
+				formal_class* formal_ptr = dynamic_cast<formal_class*>(meth_ptr->formals->nth(i));
+				if (formal_ptr)
+					cur_agrs.push_back(formal_ptr->name);
+			}
+
 			str << l->hd()->name << METHOD_SEP << meth_ptr->name << LABEL;
 			generateCodeForClassMethod(meth_ptr);
 		}
@@ -1265,14 +1320,11 @@ void CgenClassTable::generateClassMethods()
 
 void CgenClassTable::generateCodeForClassMethod(method_class* meth_ptr)
 {
-	// Try to push the frame to the stack only in dispatch method!
-
-
      emit_addiu(SP,SP,-12,str);
      emit_store(FP,3,SP,str);
      emit_store(SELF,2,SP,str);
      emit_store(RA,1,SP,str);
-     //emit_addiu(FP,SP,4,str);
+     emit_addiu(FP,SP,4,str);
      //emit_move(SELF, ACC, str);
      //emit_move(ACC, SELF, str);
 	
@@ -1281,7 +1333,7 @@ void CgenClassTable::generateCodeForClassMethod(method_class* meth_ptr)
      emit_load(FP,3,SP,str);
      emit_load(SELF,2,SP,str);
      emit_load(RA,1,SP,str);
-     emit_addiu(SP,SP,12,str);
+     emit_addiu(SP,SP,12 + cur_agrs.size() * 4,str);
      emit_return(str);
 }
 
@@ -1321,6 +1373,21 @@ void assign_class::code(ostream &s)
 {
 	if (cgen_comments)
 	  s << COMMENT << " coding assign to " << name << endl;
+
+	if (isSymbolOneOfClassAttr(cur_class, name))
+	{
+		expr->code(s); // la	$a0 int_const0	
+		emit_store(ACC, getClassAttrOffset(cur_class, name), SELF, s); //sw	$a0 <offset of the attr>($s0)
+	}
+	else // lhs is an argument of the method
+	{
+		expr->code(s); // la	$a0 int_const0
+		emit_store(ACC, getArgumentStackOffset(name), FP, s); //sw	$a0 <offset of the arg>($FP)
+	}
+	// check that it's attribute	
+	//	receive attr's offset
+	// else 
+	//	receive index on the stack 	
 }
 
 void static_dispatch_class::code(ostream &s) {
@@ -1347,19 +1414,15 @@ void dispatch_class::code(ostream &s)
 	{
 		if (cgen_comments)
 		  s << COMMENT << " coding dispatch begin" << endl;
-		if (cgen_comments)
-		  s << COMMENT << " \t saving callee's frame pointer" << endl;
+		//if (cgen_comments)
+		//  s << COMMENT << " \t saving callee's frame pointer" << endl;
 		// saving callee's frame pointer
 		//emit_push(FP, s);
-		/*emit_addiu(SP,SP,-12,s);
-     		emit_store(FP,3,SP,s);
-		emit_store(SELF,2,SP,s);
-		emit_store(RA,1,SP,s);*/
 
 		if (cgen_comments)
 		  s << COMMENT << " \t pushing arguments to the stack" << endl;
 		// pushing arguments to the stack
-		for(int i = actual->first(); actual->more(i); i = actual->next(i))
+		for(int i = actual->first(); actual->more(i); i = actual->next(i)) // ToDo: reverse the order
 		{
 			actual->nth(i)->code(s);
 			emit_push(ACC, s);
@@ -1377,11 +1440,6 @@ void dispatch_class::code(ostream &s)
 			// for IO::out_int top of the stack will be poped automatically
 			//emit_addiu(SP,SP,4,s);
 		}
-
-		/*emit_load(FP,3,SP,s);
-		emit_load(SELF,2,SP,s);
-		emit_load(RA,1,SP,s);
-		emit_addiu(SP,SP,12,s);*/
 
 		if (cgen_comments)
 		  s << COMMENT << " coding dispatch end" << endl;
@@ -1412,72 +1470,24 @@ void plus_class::code(ostream &s)
 {
   if (cgen_comments)
 	  s << COMMENT << " coding plus begin" << endl;
-	e1->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_push(ACC, s);
-	e2->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_load(T1,1,SP,s);
-	emit_add(T1, T1, ACC, s); // doing addition of 2 integers
-	emit_store(T1,1,SP,s); // saving the result on the stack
-	emit_load_int(ACC,inttable.lookup_string("0"),s);
-	emit_jal("Object.copy", s); // generate a temporary
-	emit_load(T1,1,SP,s); // taking result from the stack
-	emit_addiu(SP,SP,4,s);
-	emit_store(T1,3,ACC,s); // assigning the result
+	emit_arithmetic_op(e1, e2, "add", s);
   if (cgen_comments)
 	  s << COMMENT << " coding plus end" << endl;
 }
 
 void sub_class::code(ostream &s) 
 {
-	e1->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_push(ACC, s);
-	e2->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_load(T1,1,SP,s);
-	emit_sub(T1, T1, ACC, s); // doing math operation
-	emit_store(T1,1,SP,s); // saving the result on the stack
-	emit_load_int(ACC,inttable.lookup_string("0"),s);
-	emit_jal("Object.copy", s); // generate a temporary
-	emit_load(T1,1,SP,s); // taking result from the stack
-	emit_addiu(SP,SP,4,s);
-	emit_store(T1,3,ACC,s); // assigning the result
+	emit_arithmetic_op(e1, e2, "sub", s);
 }
 
 void mul_class::code(ostream &s) 
 {
-	e1->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_push(ACC, s);
-	e2->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_load(T1,1,SP,s);
-	emit_mul(T1, T1, ACC, s); // doing math operation
-	emit_store(T1,1,SP,s); // saving the result on the stack
-	emit_load_int(ACC,inttable.lookup_string("0"),s);
-	emit_jal("Object.copy", s); // generate a temporary
-	emit_load(T1,1,SP,s); // taking result from the stack
-	emit_addiu(SP,SP,4,s);
-	emit_store(T1,3,ACC,s); // assigning the result
+	emit_arithmetic_op(e1, e2, "mul", s);
 }
 
 void divide_class::code(ostream &s) 
 {
-	e1->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_push(ACC, s);
-	e2->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_load(T1,1,SP,s);
-	emit_div(T1, T1, ACC, s); // doing math operation
-	emit_store(T1,1,SP,s); // saving the result on the stack
-	emit_load_int(ACC,inttable.lookup_string("0"),s);
-	emit_jal("Object.copy", s); // generate a temporary
-	emit_load(T1,1,SP,s); // taking result from the stack
-	emit_addiu(SP,SP,4,s);
-	emit_store(T1,3,ACC,s); // assigning the result
+	emit_arithmetic_op(e1, e2, "div", s);
 }
 
 void neg_class::code(ostream &s) 
