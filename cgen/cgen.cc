@@ -27,9 +27,9 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 0;
+const int cgen_debug = 1;
 const int size_debug = 0;
-const int cgen_comments = 0;
+const int cgen_comments = 1;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -1381,7 +1381,7 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 void assign_class::code(ostream &s) 
 {
 	if (cgen_comments)
-	  s << COMMENT << " coding assign to " << name << endl;
+	  s << COMMENT << " coding assign to " << name << "begin" << endl;
 
 	if (isSymbolOneOfClassAttr(cur_class, name))
 	{
@@ -1393,6 +1393,9 @@ void assign_class::code(ostream &s)
 		expr->code(s); // la	$a0 int_const0
 		emit_store(ACC, getArgumentStackOffset(name), FP, s); //sw	$a0 <offset of the arg>($FP)
 	}
+
+	if (cgen_comments)
+	  s << COMMENT << " coding assign to " << name << " end" << endl;
 }
 
 void static_dispatch_class::code(ostream &s) {
@@ -1437,8 +1440,12 @@ void dispatch_class::code(ostream &s)
 
 		if (cgen_comments)
 		  s << COMMENT << " \t calling " << cur_class << "::" << name << endl;
+
+		// by convention, self is always in ACC when calling function
+		emit_move(ACC, SELF, s);
+
 		// calling the function and saving return address in $ra
-		emit_load(T1, 2, SELF, s); // load dispatch table
+		emit_load(T1, 2, ACC, s); // load dispatch table
 		emit_load(T1, getClassDispTabOffset(cur_class, name), T1, s); // load function address								
 		emit_jalr(T1, s); // call the function	
 
@@ -1455,17 +1462,22 @@ void dispatch_class::code(ostream &s)
 
 void cond_class::code(ostream &s) 
 {
-/*	if (cgen_comments)
-	  s << COMMENT << " coding branch" << endl;
-*/
-	pred->code(s);
-	else_exp->code(s);
-	emit_branch(branchInc + 1, s);
-	emit_label_def(branchInc, s);
-	then_exp->code(s);
-	emit_label_def(branchInc + 1, s);
+	if (cgen_comments)
+	  s << COMMENT << " coding branch begin" << endl;
 
-	branchInc += 2; // 2 labels per if-then-else statement
+	pred->code(s);
+	int savebranchInc = branchInc;
+	branchInc++;
+	else_exp->code(s);
+	emit_branch(branchInc, s);
+	emit_label_def(savebranchInc, s);
+	then_exp->code(s);
+	emit_label_def(branchInc, s);
+
+	if (cgen_comments)
+	  s << COMMENT << " coding branch end" << endl;
+
+	branchInc++;
 }
 
 void loop_class::code(ostream &s) 
@@ -1499,17 +1511,29 @@ void plus_class::code(ostream &s)
 
 void sub_class::code(ostream &s) 
 {
+  if (cgen_comments)
+	  s << COMMENT << " coding sub begin" << endl;
 	emit_arithmetic_op(e1, e2, "sub", s);
+  if (cgen_comments)
+	  s << COMMENT << " coding sub end" << endl;
 }
 
 void mul_class::code(ostream &s) 
 {
+  if (cgen_comments)
+	  s << COMMENT << " coding mul begin" << endl;
 	emit_arithmetic_op(e1, e2, "mul", s);
+  if (cgen_comments)
+	  s << COMMENT << " coding mul end" << endl;
 }
 
 void divide_class::code(ostream &s) 
 {
+  if (cgen_comments)
+	  s << COMMENT << " coding div begin" << endl;
 	emit_arithmetic_op(e1, e2, "div", s);
+  if (cgen_comments)
+	  s << COMMENT << " coding div end" << endl;
 }
 
 void neg_class::code(ostream &s) 
