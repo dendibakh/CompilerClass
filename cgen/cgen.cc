@@ -27,9 +27,9 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 1;
+const int cgen_debug = 0;
 const int size_debug = 0;
-const int cgen_comments = 1;
+const int cgen_comments = 0;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -460,6 +460,48 @@ namespace
 		emit_load(T1,1,SP,s); // taking result from the stack
 		emit_addiu(SP,SP,4,s);
 		emit_store(T1,3,ACC,s); // assigning the result
+	}
+
+	void emit_predicate_code_begin(Expression e1, Expression e2, ostream &s)
+	{
+		e1->code(s);
+		emit_load(ACC, 3, ACC, s);
+		emit_push(ACC, s);
+		e2->code(s);
+		emit_load(ACC, 3, ACC, s);
+		emit_load(T1,1,SP,s);
+		emit_addiu(SP,SP,4,s);
+	}
+
+	void emit_predicate_code_finish(ostream &s)
+	{
+		emit_load_bool(ACC, BoolConst(false), s);
+		emit_branch(branchInc + 1, s);
+		emit_label_def(branchInc, s);
+		branchInc++;
+
+		emit_load_bool(ACC, BoolConst(true), s);
+		emit_label_def(branchInc, s);
+		branchInc++;
+	}
+
+	void emit_negate_bool_in_acc(ostream &s)
+	{
+	  	if (cgen_comments)
+		  s << COMMENT << " coding negation begin" << endl;
+		emit_load(T1, 3, ACC, s);
+		emit_beqz(T1, branchInc, s);
+
+		emit_load_bool(ACC, BoolConst(false), s);
+		emit_branch(branchInc + 1, s);
+		emit_label_def(branchInc, s);
+		branchInc++;
+
+		emit_load_bool(ACC, BoolConst(true), s);
+		emit_label_def(branchInc, s);
+		branchInc++;
+	  	if (cgen_comments)
+		  s << COMMENT << " coding negation end" << endl;
 	}
 }
 
@@ -1465,19 +1507,28 @@ void cond_class::code(ostream &s)
 	if (cgen_comments)
 	  s << COMMENT << " coding branch begin" << endl;
 
+	// predicate will set ACC to point to either bool_const_false or bool_const_true
 	pred->code(s);
-	int savebranchInc = branchInc;
+	
+	emit_load(T1, 3, ACC, s);
+	emit_beqz(T1, branchInc, s);
+
+	int savebranchIncElse = branchInc;
 	branchInc++;
-	else_exp->code(s);
-	emit_branch(branchInc, s);
-	emit_label_def(savebranchInc, s);
+
 	then_exp->code(s);
-	emit_label_def(branchInc, s);
+
+	emit_branch(branchInc, s);
+	int savebranchIncThen = branchInc;
+	branchInc++;
+	emit_label_def(savebranchIncElse, s);
+
+	else_exp->code(s);	
+
+	emit_label_def(savebranchIncThen, s);
 
 	if (cgen_comments)
 	  s << COMMENT << " coding branch end" << endl;
-
-	branchInc++;
 }
 
 void loop_class::code(ostream &s) 
@@ -1538,29 +1589,59 @@ void divide_class::code(ostream &s)
 
 void neg_class::code(ostream &s) 
 {
+	e1->code(s);
 	emit_neg(ACC,ACC,s);
 }
 
-void lt_class::code(ostream &s) {
+void lt_class::code(ostream &s) 
+{
+  	if (cgen_comments)
+	  s << COMMENT << " coding conditional begin" << endl;
+
+	emit_predicate_code_begin(e1, e2, s);
+
+	emit_blt(ACC, T1, branchInc, s);
+
+	emit_predicate_code_finish(s);
+
+  	if (cgen_comments)
+	  s << COMMENT << " coding conditional end" << endl;
 }
 
 void eq_class::code(ostream &s) 
 {
-	e1->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_push(ACC, s);
-	e2->code(s);
-	emit_load(ACC, 3, ACC, s);
-	emit_load(T1,1,SP,s);
-	emit_addiu(SP,SP,4,s);
+  	if (cgen_comments)
+	  s << COMMENT << " coding conditional begin" << endl;
+
+	emit_predicate_code_begin(e1, e2, s);
 
 	emit_beq(ACC, T1, branchInc, s);
+
+	emit_predicate_code_finish(s);
+
+  	if (cgen_comments)
+	  s << COMMENT << " coding conditional end" << endl;
 }
 
-void leq_class::code(ostream &s) {
+void leq_class::code(ostream &s) 
+{
+  	if (cgen_comments)
+	  s << COMMENT << " coding conditional begin" << endl;
+
+	emit_predicate_code_begin(e1, e2, s);
+
+	emit_bleq(ACC, T1, branchInc, s);
+
+	emit_predicate_code_finish(s);
+
+  	if (cgen_comments)
+	  s << COMMENT << " coding conditional end" << endl;
 }
 
-void comp_class::code(ostream &s) {
+void comp_class::code(ostream &s) 
+{
+	e1->code(s);
+	emit_negate_bool_in_acc(s);
 }
 
 void int_const_class::code(ostream& s)  
@@ -1593,7 +1674,8 @@ void new__class::code(ostream &s) {
 void isvoid_class::code(ostream &s) {
 }
 
-void no_expr_class::code(ostream &s) {
+void no_expr_class::code(ostream &s) 
+{
 }
 
 void object_class::code(ostream &s) 
