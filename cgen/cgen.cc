@@ -120,6 +120,9 @@ namespace
 	std::vector<Symbol> cur_agrs;
 	std::map<Symbol, std::vector<Symbol> > dispTabs;
 	std::map<Symbol, std::vector<attr_class*> > attrs;
+	std::vector<Symbol> temporaries; // space for variables in let expressions
+	int cur_numberOfTemps = 0;
+
 	int branchInc = 0;
 
 	unsigned getClassDispTabOffset(Symbol cl, Symbol method)
@@ -179,16 +182,236 @@ namespace
 		return false;
 	}
 
+	bool isSymbolOneOfMethodArgs(Symbol argName)
+	{
+		std::vector<Symbol>::iterator iter = std::find(cur_agrs.begin(), cur_agrs.end(), argName);
+		return iter != cur_agrs.end();
+	}
+
 	unsigned getArgumentStackOffset(Symbol argName)
 	{
 		std::vector<Symbol>::iterator index = std::find(cur_agrs.begin(), cur_agrs.end(), argName);
 		if (index != cur_agrs.end())
-			return 3 + index - cur_agrs.begin();
+			return 3 + index - cur_agrs.begin() + cur_numberOfTemps;
 		else
 			if (cgen_debug)
 			   cout << "argument " << argName << " was not found.";
-		return 3;
+		return 3 + cur_numberOfTemps;
 	}
+
+	unsigned getOffsetOfTemporary(Symbol argName)
+	{
+		std::vector<Symbol>::iterator index = std::find(temporaries.begin(), temporaries.end(), argName);
+		if (index != temporaries.end())
+			return cur_numberOfTemps - (index - temporaries.begin() + 1);
+		else
+			if (cgen_debug)
+			   cout << "argument " << argName << " was not found.";
+		return 0;
+	}
+	
+	int calculateSpaceForTemporaries(Expression expr_ptr);
+
+	int calculateSpaceForTemporaries(Expressions exprs)
+	{
+		int max = 0;
+		for(int i = exprs->first(); exprs->more(i); i = exprs->next(i))
+		{
+			max = std::max(max, calculateSpaceForTemporaries(exprs->nth(i)));
+		}
+		return max;
+	}
+
+	int calculateSpaceForTemporaries(Expression expr_ptr)
+	{
+		{
+			assign_class* expr = dynamic_cast<assign_class*>(expr_ptr);
+			if (expr)
+			{
+				return calculateSpaceForTemporaries(expr->expr);
+			}
+		}
+		{
+			static_dispatch_class* expr = dynamic_cast<static_dispatch_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->expr),
+						calculateSpaceForTemporaries(expr->actual));
+			}
+		}
+		{
+			dispatch_class* expr = dynamic_cast<dispatch_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->expr),
+						calculateSpaceForTemporaries(expr->actual));
+			}
+		}
+		{
+			cond_class* expr = dynamic_cast<cond_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->then_exp),
+						calculateSpaceForTemporaries(expr->else_exp));
+			}
+		}
+		{
+			loop_class* expr = dynamic_cast<loop_class*>(expr_ptr);
+			if (expr)
+			{
+				return calculateSpaceForTemporaries(expr->body);
+			}
+		}
+		{
+			typcase_class* expr = dynamic_cast<typcase_class*>(expr_ptr);
+			if (expr)
+			{
+				int max = 0;
+				for(int i = expr->cases->first() + 1; expr->cases->more(i); i = expr->cases->next(i))
+				{
+					branch_class* branch_ptr = (branch_class*)expr->cases->nth(i);				
+					max = std::max(max, calculateSpaceForTemporaries(branch_ptr->expr));
+				}
+				return max;
+			}
+		}
+		{
+			block_class* expr = dynamic_cast<block_class*>(expr_ptr);
+			if (expr)
+			{
+				return calculateSpaceForTemporaries(expr->body);
+			}
+		}
+		{
+			let_class* expr = dynamic_cast<let_class*>(expr_ptr);
+			if (expr)
+			{
+				return calculateSpaceForTemporaries(expr->body) + 1;
+			}
+		}
+		{
+			plus_class* expr = dynamic_cast<plus_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->e1),
+						calculateSpaceForTemporaries(expr->e2));
+			}
+		}
+		{
+			sub_class* expr = dynamic_cast<sub_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->e1),
+						calculateSpaceForTemporaries(expr->e2));
+			}
+		}
+		{
+			mul_class* expr = dynamic_cast<mul_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->e1),
+						calculateSpaceForTemporaries(expr->e2));
+			}
+		}
+		{
+			divide_class* expr = dynamic_cast<divide_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->e1),
+						calculateSpaceForTemporaries(expr->e2));
+			}
+		}
+		{
+			neg_class* expr = dynamic_cast<neg_class*>(expr_ptr);
+			if (expr)
+			{
+				return calculateSpaceForTemporaries(expr->e1);
+			}
+		}
+		{
+			lt_class* expr = dynamic_cast<lt_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->e1),
+						calculateSpaceForTemporaries(expr->e2));
+			}
+		}
+		{
+			eq_class* expr = dynamic_cast<eq_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->e1),
+						calculateSpaceForTemporaries(expr->e2));
+			}
+		}
+		{
+			leq_class* expr = dynamic_cast<leq_class*>(expr_ptr);
+			if (expr)
+			{
+				return std::max(calculateSpaceForTemporaries(expr->e1),
+						calculateSpaceForTemporaries(expr->e2));
+			}
+		}
+		{
+			comp_class* expr = dynamic_cast<comp_class*>(expr_ptr);
+			if (expr)
+			{
+				return calculateSpaceForTemporaries(expr->e1);
+			}
+		}
+		{
+			int_const_class* expr = dynamic_cast<int_const_class*>(expr_ptr);
+			if (expr)
+			{
+				return 0;
+			}
+		}
+		{
+			bool_const_class* expr = dynamic_cast<bool_const_class*>(expr_ptr);
+			if (expr)
+			{
+				return 0;
+			}
+		}
+		{
+			string_const_class* expr = dynamic_cast<string_const_class*>(expr_ptr);
+			if (expr)
+			{
+				return 0;
+			}
+		}
+		{
+			new__class* expr = dynamic_cast<new__class*>(expr_ptr);
+			if (expr)
+			{
+				return 0;
+			}
+		}
+		{
+			isvoid_class* expr = dynamic_cast<isvoid_class*>(expr_ptr);
+			if (expr)
+			{
+				return calculateSpaceForTemporaries(expr->e1);
+			}
+		}
+		{
+		
+			no_expr_class* expr = dynamic_cast<no_expr_class*>(expr_ptr);
+			if (expr)
+			{
+				return 0;
+			}
+		}
+		{
+			object_class* expr = dynamic_cast<object_class*>(expr_ptr);
+			if (expr)
+			{
+				return 0;
+			}
+		}
+		return 0;
+	}
+
 }
 
 //  BoolConst is a class that implements code generation for operations
@@ -1352,6 +1575,13 @@ void CgenClassTable::generateClassMethods()
 		if (meth_ptr)
 		{
 			cur_agrs.clear();
+			temporaries.clear();
+			
+			// calculate space for the temps
+			cur_numberOfTemps = calculateSpaceForTemporaries(meth_ptr->expr);
+			if (cgen_comments)
+				cout << "Temporaries for " << meth_ptr->name << " : " << cur_numberOfTemps << endl;
+			
 			// store arguments offsets
 			for(int i = meth_ptr->formals->first(); meth_ptr->formals->more(i); i = meth_ptr->formals->next(i))
 		  	{
@@ -1371,20 +1601,20 @@ void CgenClassTable::generateClassMethods()
 
 void CgenClassTable::generateCodeForClassMethod(method_class* meth_ptr)
 {
-     emit_addiu(SP,SP,-12,str);
-     emit_store(FP,3,SP,str);
-     emit_store(SELF,2,SP,str);
-     emit_store(RA,1,SP,str);
+     emit_addiu(SP,SP, -12 - cur_numberOfTemps * 4,str);
+     emit_store(FP,3 + cur_numberOfTemps,SP,str);
+     emit_store(SELF,2 + cur_numberOfTemps,SP,str);
+     emit_store(RA,1 + cur_numberOfTemps,SP,str);
      emit_addiu(FP,SP,4,str);
      emit_move(SELF, ACC, str);
      //emit_move(ACC, SELF, str);
 	
      meth_ptr->expr->code(str);
 
-     emit_load(FP,3,SP,str);
-     emit_load(SELF,2,SP,str);
-     emit_load(RA,1,SP,str);
-     emit_addiu(SP,SP,12 + cur_agrs.size() * 4,str);
+     emit_load(FP,3 + cur_numberOfTemps,SP,str);
+     emit_load(SELF,2 + cur_numberOfTemps,SP,str);
+     emit_load(RA,1 + cur_numberOfTemps,SP,str);
+     emit_addiu(SP,SP,12 + cur_agrs.size() * 4 + cur_numberOfTemps * 4,str);
      emit_return(str);
 }
 
@@ -1430,10 +1660,15 @@ void assign_class::code(ostream &s)
 		expr->code(s); // la	$a0 int_const0	
 		emit_store(ACC, getClassAttrOffset(cur_class, name), SELF, s); //sw	$a0 <offset of the attr>($s0)
 	}
-	else // lhs is an argument of the method
+	else if (isSymbolOneOfMethodArgs(name))
 	{
 		expr->code(s); // la	$a0 int_const0
 		emit_store(ACC, getArgumentStackOffset(name), FP, s); //sw	$a0 <offset of the arg>($FP)
+	}
+	else	// variable defined in let expressions
+	{
+		expr->code(s); // la	$a0 int_const0
+		emit_store(ACC, getOffsetOfTemporary(name), FP, s); //sw	$a0 <offset of the temp>($FP)
 	}
 
 	if (cgen_comments)
@@ -1548,7 +1783,20 @@ void block_class::code(ostream &s)
   }
 }
 
-void let_class::code(ostream &s) {
+void let_class::code(ostream &s) 
+{
+  if (cgen_comments)
+	  s << COMMENT << " coding let for " << identifier << " begin" << endl;
+
+  init->code(s);
+  emit_jal("Object.copy", s);
+
+  temporaries.push_back(identifier);
+  body->code(s);
+  temporaries.pop_back();
+
+  if (cgen_comments)
+	  s << COMMENT << " coding let for " << identifier << " end" << endl;
 }
 
 void plus_class::code(ostream &s) 
@@ -1687,11 +1935,14 @@ void object_class::code(ostream &s)
 	{
 		emit_load(ACC, getClassAttrOffset(cur_class, name), SELF, s);
 	}
-	else // lhs is an argument of the method
+	else if (isSymbolOneOfMethodArgs(name))
 	{
 		emit_load(ACC, getArgumentStackOffset(name), FP, s);
 	}
-  
+  	else	// variable defined in let expressions
+	{
+		emit_load(ACC, getOffsetOfTemporary(name), FP, s);
+	}
 }
 
 
