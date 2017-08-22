@@ -27,9 +27,9 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 0;
+const int cgen_debug = 1;
 const int size_debug = 0;
-const int cgen_comments = 0;
+const int cgen_comments = 1;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -1650,10 +1650,17 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //
 //*****************************************************************
 
+namespace
+{
+	bool isNoExpr(Expression expr)
+	{
+		return dynamic_cast<no_expr_class*>(expr) != NULL;
+	}
+}
 void assign_class::code(ostream &s) 
 {
 	if (cgen_comments)
-	  s << COMMENT << " coding assign to " << name << "begin" << endl;
+	  s << COMMENT << " coding assign to " << name << " begin" << endl;
 
 	if (isSymbolOneOfClassAttr(cur_class, name))
 	{
@@ -1788,10 +1795,22 @@ void let_class::code(ostream &s)
   if (cgen_comments)
 	  s << COMMENT << " coding let for " << identifier << " begin" << endl;
 
-  init->code(s);
+  if (isNoExpr(init))
+  {
+	std::string str = type_decl->get_string();
+	str += PROTOBJ_SUFFIX;
+	emit_load_address(ACC, (char*)str.c_str(), s);
+  }
+  else
+  {
+	init->code(s);
+  }
+
   emit_jal("Object.copy", s);
 
   temporaries.push_back(identifier);
+  emit_store(ACC, getOffsetOfTemporary(identifier), FP, s);  
+
   body->code(s);
   temporaries.pop_back();
 
