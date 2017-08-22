@@ -27,9 +27,9 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 1;
+const int cgen_debug = 0;
 const int size_debug = 0;
-const int cgen_comments = 1;
+const int cgen_comments = 0;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -1397,22 +1397,6 @@ void CgenClassTable::storeAttrOffsetsWithParents(CgenNodeP cl, std::vector<attr_
 	return;
    if (cl->name == prim_slot)
 	return;
-   /*if (cl->name == Str)
-   {
-	vect.push_back(val);
-	vect.push_back(str_field);
-	return;
-   }
-   if (cl->name == Int)
-   {
-	vect.push_back(val);
-	return;
-   }
-   if (cl->name == Bool)
-   {
-	vect.push_back(val);
-	return;
-   }*/
 
    storeAttrOffsetsWithParents(cl->get_parentnd(), vect);
 
@@ -1631,7 +1615,6 @@ void CgenClassTable::generateCodeForClassMethod(method_class* meth_ptr)
      emit_store(RA,1 + cur_numberOfTemps,SP,str);
      emit_addiu(FP,SP,4,str);
      emit_move(SELF, ACC, str);
-     //emit_move(ACC, SELF, str);
 	
      meth_ptr->expr->code(str);
 
@@ -1681,17 +1664,17 @@ void assign_class::code(ostream &s)
 
 	if (isSymbolOneOfClassAttr(cur_class, name))
 	{
-		expr->code(s); // la	$a0 int_const0	
+		expr->code(s);
 		emit_store(ACC, getClassAttrOffset(cur_class, name), SELF, s); //sw	$a0 <offset of the attr>($s0)
 	}
 	else if (isSymbolOneOfMethodArgs(name))
 	{
-		expr->code(s); // la	$a0 int_const0
+		expr->code(s);
 		emit_store(ACC, getArgumentStackOffset(name), FP, s); //sw	$a0 <offset of the arg>($FP)
 	}
 	else	// variable defined in let expressions
 	{
-		expr->code(s); // la	$a0 int_const0
+		expr->code(s);
 		emit_store(ACC, getOffsetOfTemporary(name), FP, s); //sw	$a0 <offset of the temp>($FP)
 	}
 
@@ -1725,15 +1708,11 @@ void dispatch_class::code(ostream &s)
 	{
 		if (cgen_comments)
 		  s << COMMENT << " coding dispatch begin" << endl;
-		//if (cgen_comments)
-		//  s << COMMENT << " \t saving callee's frame pointer" << endl;
-		// saving callee's frame pointer
-		//emit_push(FP, s);
 
 		if (cgen_comments)
 		  s << COMMENT << " \t pushing arguments to the stack" << endl;
 		// pushing arguments to the stack
-		for(int i = actual->first(); actual->more(i); i = actual->next(i)) // ToDo: reverse the order
+		for(int i = actual->len() - 1; i >= 0; i--)
 		{
 			actual->nth(i)->code(s);
 			emit_push(ACC, s);
@@ -1741,7 +1720,6 @@ void dispatch_class::code(ostream &s)
 
 		// by convention, self is always in ACC when calling function
 
-		//emit_move(ACC, SELF, s);
 		expr->code(s);
 
 		if (cgen_comments)
