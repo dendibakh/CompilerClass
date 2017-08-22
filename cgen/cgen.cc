@@ -127,6 +127,9 @@ namespace
 
 	unsigned getClassDispTabOffset(Symbol cl, Symbol method)
 	{
+		if (cl == SELF_TYPE)
+			cl = cur_class;
+
 		std::map<Symbol, std::vector<Symbol> >::iterator iter = dispTabs.find(cl);
 		if (iter != dispTabs.end())
 		{
@@ -412,6 +415,10 @@ namespace
 		return 0;
 	}
 
+	bool isNoExpr(Expression expr)
+	{
+		return dynamic_cast<no_expr_class*>(expr) != NULL;
+	}
 }
 
 //  BoolConst is a class that implements code generation for operations
@@ -725,6 +732,20 @@ namespace
 		branchInc++;
 	  	if (cgen_comments)
 		  s << COMMENT << " coding negation end" << endl;
+	}
+
+	void emit_code_for_uninitialized_object(Symbol type_decl, ostream &s)
+	{
+		if (type_decl == Str)
+		{
+			emit_load_string(ACC,stringtable.lookup_string(""),s);
+		}
+		else
+		{
+			std::string str = type_decl->get_string();
+			str += PROTOBJ_SUFFIX;
+			emit_load_address(ACC, (char*)str.c_str(), s);
+		}
 	}
 }
 
@@ -1534,13 +1555,16 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
      {
 	for (std::vector<attr_class*>::iterator i = attrsToInit.begin(); i != attrsToInit.end(); ++i)
 	{
-		no_expr_class* no_expr_ptr = dynamic_cast<no_expr_class*>((*i)->init);
-		if (!no_expr_ptr)
+		if (isNoExpr((*i)->init))
 		{
-			// if init differs from no_expr, code it
-			(*i)->init->code(str);
-			emit_store(ACC, 3 + i - attrsToInit.begin(), SELF, str);
+			emit_code_for_uninitialized_object((*i)->type_decl, str);
+			emit_jal("Object.copy", str);
 		}
+		else
+		{
+			(*i)->init->code(str);
+		}
+		emit_store(ACC, 3 + i - attrsToInit.begin(), SELF, str);
 	}
      }
 
@@ -1650,13 +1674,6 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //
 //*****************************************************************
 
-namespace
-{
-	bool isNoExpr(Expression expr)
-	{
-		return dynamic_cast<no_expr_class*>(expr) != NULL;
-	}
-}
 void assign_class::code(ostream &s) 
 {
 	if (cgen_comments)
@@ -1722,15 +1739,17 @@ void dispatch_class::code(ostream &s)
 			emit_push(ACC, s);
 		}
 
-		if (cgen_comments)
-		  s << COMMENT << " \t calling " << cur_class << "::" << name << endl;
-
 		// by convention, self is always in ACC when calling function
-		emit_move(ACC, SELF, s);
+
+		//emit_move(ACC, SELF, s);
+		expr->code(s);
+
+		if (cgen_comments)
+		  s << COMMENT << " \t calling " << expr->type << "::" << name << endl;
 
 		// calling the function and saving return address in $ra
 		emit_load(T1, 2, ACC, s); // load dispatch table
-		emit_load(T1, getClassDispTabOffset(cur_class, name), T1, s); // load function address								
+		emit_load(T1, getClassDispTabOffset(expr->type, name), T1, s); // load function address								
 		emit_jalr(T1, s); // call the function	
 
 		for(int i = actual->first(); actual->more(i); i = actual->next(i))
@@ -1797,21 +1816,19 @@ void let_class::code(ostream &s)
 
   if (isNoExpr(init))
   {
-	std::string str = type_decl->get_string();
-	str += PROTOBJ_SUFFIX;
-	emit_load_address(ACC, (char*)str.c_str(), s);
+	emit_code_for_uninitialized_object(type_decl, s);
+	emit_jal("Object.copy", s);
   }
   else
   {
 	init->code(s);
   }
 
-  emit_jal("Object.copy", s);
-
   temporaries.push_back(identifier);
   emit_store(ACC, getOffsetOfTemporary(identifier), FP, s);  
 
   body->code(s);
+
   temporaries.pop_back();
 
   if (cgen_comments)
@@ -1950,7 +1967,11 @@ void object_class::code(ostream &s)
   	if (cgen_comments)
 	  s << COMMENT << " coding object " << name << endl;
 
-	if (isSymbolOneOfClassAttr(cur_class, name))
+	if (name == self)
+	{
+		emit_move(ACC, SELF, s);
+	}
+	else if (isSymbolOneOfClassAttr(cur_class, name))
 	{
 		emit_load(ACC, getClassAttrOffset(cur_class, name), SELF, s);
 	}
