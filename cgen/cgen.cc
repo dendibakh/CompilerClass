@@ -1773,7 +1773,26 @@ void cond_class::code(ostream &s)
 void loop_class::code(ostream &s) 
 {
 	if (cgen_comments)
-	  s << COMMENT << " coding loop" << endl;
+	  s << COMMENT << " coding loop begin" << endl;
+
+	int saveLabelBegin = branchInc;
+	branchInc++;
+
+	int saveLabelEnd = branchInc;
+	branchInc++;
+
+	emit_label_def(saveLabelBegin, s);
+	pred->code(s);
+
+	emit_load(T1, 3, ACC, s);
+	emit_beqz(T1, saveLabelEnd, s);	
+
+	body->code(s);
+	emit_branch(saveLabelBegin, s);
+	emit_label_def(saveLabelEnd, s);
+
+	if (cgen_comments)
+	  s << COMMENT << " coding loop end" << endl;
 }
 
 void typcase_class::code(ostream &s) {
@@ -1862,7 +1881,7 @@ void lt_class::code(ostream &s)
 
 	emit_predicate_code_begin(e1, e2, s);
 
-	emit_blt(ACC, T1, branchInc, s);
+	emit_blt(T1, ACC, branchInc, s);
 
 	emit_predicate_code_finish(s);
 
@@ -1877,7 +1896,7 @@ void eq_class::code(ostream &s)
 
 	emit_predicate_code_begin(e1, e2, s);
 
-	emit_beq(ACC, T1, branchInc, s);
+	emit_beq(T1, ACC, branchInc, s);
 
 	emit_predicate_code_finish(s);
 
@@ -1892,7 +1911,7 @@ void leq_class::code(ostream &s)
 
 	emit_predicate_code_begin(e1, e2, s);
 
-	emit_bleq(ACC, T1, branchInc, s);
+	emit_bleq(T1, ACC, branchInc, s);
 
 	emit_predicate_code_finish(s);
 
