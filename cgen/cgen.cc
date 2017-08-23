@@ -195,7 +195,7 @@ namespace
 	{
 		std::vector<Symbol>::iterator index = std::find(cur_agrs.begin(), cur_agrs.end(), argName);
 		if (index != cur_agrs.end())
-			return 3 + index - cur_agrs.begin() + cur_numberOfTemps;
+			return 3 + ( cur_agrs.end() - index - 1 )  + cur_numberOfTemps;
 		else
 			if (cgen_debug)
 			   cout << "argument " << argName << " was not found.";
@@ -1733,7 +1733,7 @@ void dispatch_class::code(ostream &s)
 		if (cgen_comments)
 		  s << COMMENT << " \t pushing arguments to the stack" << endl;
 		// pushing arguments to the stack
-		for(int i = actual->len() - 1; i >= 0; i--)
+		for(int i = 0; i < actual->len(); i++)
 		{
 			actual->nth(i)->code(s);
 			emit_push(ACC, s);
