@@ -1708,6 +1708,8 @@ void dispatch_class::code(ostream &s)
 {
 	if (name == cool_abort)
 	{
+		expr->code(s);
+
 		emit_bne(ACC, ZERO, branchInc, s);
 		emit_load_address(ACC, "str_const0", s);
 		emit_load_imm(T1, 1, s);
