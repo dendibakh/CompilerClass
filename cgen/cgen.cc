@@ -1956,7 +1956,13 @@ void bool_const_class::code(ostream& s)
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
-void new__class::code(ostream &s) {
+void new__class::code(ostream &s) 
+{
+  	if (cgen_comments)
+	  s << COMMENT << " coding new " << type_name << " expression" << endl;
+
+	emit_code_for_uninitialized_object(type_name, s);
+	emit_jal("Object.copy", s);
 }
 
 void isvoid_class::code(ostream &s) {
