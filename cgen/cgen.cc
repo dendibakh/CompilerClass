@@ -212,6 +212,12 @@ namespace
 			   cout << "argument " << argName << " was not found.";
 		return 0;
 	}
+
+	bool isSymbolOneOfTemporaries(Symbol name)
+	{
+		std::vector<Symbol>::iterator iter = std::find(temporaries.begin(), temporaries.end(), name);
+		return iter != temporaries.end();
+	}
 	
 	int calculateSpaceForTemporaries(Expression expr_ptr);
 
@@ -1519,6 +1525,7 @@ void CgenClassTable::generateInitMethods()
 void CgenClassTable::generateInitMethodForClass(Symbol cl)
 {
      str << cl << CLASSINIT_SUFFIX << LABEL;
+
      emit_addiu(SP,SP,-12,str);
      emit_store(FP,3,SP,str);
      emit_store(SELF,2,SP,str);
@@ -1535,8 +1542,7 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
 	     emit_jal((char*)s.c_str(), str);
      }
 
-     if(!attrsToInit.empty())
-     {
+     // Initialize attributes.
 	for (std::vector<attr_class*>::iterator i = attrsToInit.begin(); i != attrsToInit.end(); ++i)
 	{
 		if (isNoExpr((*i)->init))
@@ -1548,9 +1554,8 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
 		{
 			(*i)->init->code(str);
 		}
-		emit_store(ACC, 3 + i - attrsToInit.begin(), SELF, str);
+		emit_store(ACC, getClassAttrOffset(cur_class, (*i)->name), SELF, str);
 	}
-     }
 
      emit_move(ACC, SELF, str);
      emit_load(FP,3,SP,str);
@@ -1598,6 +1603,7 @@ void CgenClassTable::generateClassMethods()
 					cur_agrs.push_back(formal_ptr->name);
 			}
 
+			// generate the code for method itself
 			str << l->hd()->name << METHOD_SEP << meth_ptr->name << LABEL;
 			generateCodeForClassMethod(meth_ptr);
 		}
@@ -1662,20 +1668,20 @@ void assign_class::code(ostream &s)
 	if (cgen_comments)
 	  s << COMMENT << " coding assign to " << name << " begin" << endl;
 
-	if (isSymbolOneOfClassAttr(cur_class, name))
+	if (isSymbolOneOfTemporaries(name))
 	{
 		expr->code(s);
-		emit_store(ACC, getClassAttrOffset(cur_class, name), SELF, s); //sw	$a0 <offset of the attr>($s0)
+		emit_store(ACC, getOffsetOfTemporary(name), FP, s); //sw	$a0 <offset of the temp>($FP)
 	}
 	else if (isSymbolOneOfMethodArgs(name))
 	{
 		expr->code(s);
 		emit_store(ACC, getArgumentStackOffset(name), FP, s); //sw	$a0 <offset of the arg>($FP)
 	}
-	else	// variable defined in let expressions
+	else if (isSymbolOneOfClassAttr(cur_class, name))
 	{
 		expr->code(s);
-		emit_store(ACC, getOffsetOfTemporary(name), FP, s); //sw	$a0 <offset of the temp>($FP)
+		emit_store(ACC, getClassAttrOffset(cur_class, name), SELF, s); //sw	$a0 <offset of the attr>($s0)
 	}
 
 	if (cgen_comments)
@@ -1730,11 +1736,12 @@ void dispatch_class::code(ostream &s)
 		emit_load(T1, getClassDispTabOffset(expr->type, name), T1, s); // load function address								
 		emit_jalr(T1, s); // call the function	
 
-		for(int i = actual->first(); actual->more(i); i = actual->next(i))
+		// callee's side is responsible for popping the stack frame (including arguments!)
+		/*for(int i = actual->first(); actual->more(i); i = actual->next(i))
 		{
 			// for IO::out_int top of the stack will be poped automatically
 			//emit_addiu(SP,SP,4,s);
-		}
+		}*/
 
 		if (cgen_comments)
 		  s << COMMENT << " coding dispatch end" << endl;
@@ -1968,18 +1975,17 @@ void object_class::code(ostream &s)
 	{
 		emit_move(ACC, SELF, s);
 	}
-	else if (isSymbolOneOfClassAttr(cur_class, name))
+  	else if (isSymbolOneOfTemporaries(name))
 	{
-		emit_load(ACC, getClassAttrOffset(cur_class, name), SELF, s);
+		emit_load(ACC, getOffsetOfTemporary(name), FP, s);
 	}
 	else if (isSymbolOneOfMethodArgs(name))
 	{
 		emit_load(ACC, getArgumentStackOffset(name), FP, s);
 	}
-  	else	// variable defined in let expressions
+	else if (isSymbolOneOfClassAttr(cur_class, name))
 	{
-		emit_load(ACC, getOffsetOfTemporary(name), FP, s);
+		emit_load(ACC, getClassAttrOffset(cur_class, name), SELF, s);
 	}
 }
-
 
