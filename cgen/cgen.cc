@@ -742,15 +742,25 @@ namespace
 
 	void emit_code_for_uninitialized_object(Symbol type_decl, ostream &s)
 	{
-		if (type_decl == Str)
+		// Int, String and Bool have default initialization policy
+		// Otherwise it will be 0 (NULL)
+		if (type_decl == Str || type_decl == Int || type_decl == Bool)
 		{
-			emit_load_string(ACC,stringtable.lookup_string(""),s);
+			if (type_decl == Str)
+			{
+				emit_load_string(ACC,stringtable.lookup_string(""),s);
+			}
+			else
+			{
+				std::string str = type_decl->get_string();
+				str += PROTOBJ_SUFFIX;
+				emit_load_address(ACC, (char*)str.c_str(), s);
+			}
+			emit_jal("Object.copy", s);
 		}
 		else
 		{
-			std::string str = type_decl->get_string();
-			str += PROTOBJ_SUFFIX;
-			emit_load_address(ACC, (char*)str.c_str(), s);
+			emit_move(ACC, ZERO, s);
 		}
 	}
 }
@@ -1339,7 +1349,11 @@ void CgenClassTable::fillObjectLayout(CgenNodeP cl)
 		{
 			for (std::vector<attr_class*>::iterator i = iter->second.begin(); i != iter->second.end(); ++i)
 			{
-				str << WORD << (*i)->type_decl << PROTOBJ_SUFFIX << endl;
+				// Int, String and Bool have default initialization policy, rest will be 0 (NULL)
+				if ((*i)->type_decl == Str || (*i)->type_decl == Int || (*i)->type_decl == Bool)
+					str << WORD << (*i)->type_decl << PROTOBJ_SUFFIX << endl;
+				else
+					str << WORD << "0" << endl;					
 			}
 		}
 	}
@@ -1548,7 +1562,6 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
 		if (isNoExpr((*i)->init))
 		{
 			emit_code_for_uninitialized_object((*i)->type_decl, str);
-			emit_jal("Object.copy", str);
 		}
 		else
 		{
@@ -1821,7 +1834,6 @@ void let_class::code(ostream &s)
   if (isNoExpr(init))
   {
 	emit_code_for_uninitialized_object(type_decl, s);
-	emit_jal("Object.copy", s);
   }
   else
   {
@@ -1962,10 +1974,18 @@ void new__class::code(ostream &s)
 	  s << COMMENT << " coding new " << type_name << " expression" << endl;
 
 	emit_code_for_uninitialized_object(type_name, s);
-	emit_jal("Object.copy", s);
 }
 
-void isvoid_class::code(ostream &s) {
+void isvoid_class::code(ostream &s) 
+{
+  	if (cgen_comments)
+	  s << COMMENT << " coding isvoid expression" << endl;
+	
+	e1->code(s);
+
+	emit_beq(ACC, ZERO, branchInc, s);
+
+	emit_predicate_code_finish(s);
 }
 
 void no_expr_class::code(ostream &s) 
