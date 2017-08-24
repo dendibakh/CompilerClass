@@ -27,9 +27,9 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 0;
+const int cgen_debug = 1;
 const int size_debug = 0;
-const int cgen_comments = 0;
+const int cgen_comments = 1;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -742,26 +742,17 @@ namespace
 
 	void emit_code_for_uninitialized_object(Symbol type_decl, ostream &s)
 	{
-		// Int, String and Bool have default initialization policy
-		// Otherwise it will be 0 (NULL)
-		if (type_decl == Str || type_decl == Int || type_decl == Bool)
+		if (type_decl == Str)
 		{
-			if (type_decl == Str)
-			{
-				emit_load_string(ACC,stringtable.lookup_string(""),s);
-			}
-			else
-			{
-				std::string str = type_decl->get_string();
-				str += PROTOBJ_SUFFIX;
-				emit_load_address(ACC, (char*)str.c_str(), s);
-			}
-			emit_jal("Object.copy", s);
+			emit_load_string(ACC,stringtable.lookup_string(""),s);
 		}
 		else
 		{
-			emit_move(ACC, ZERO, s);
+			std::string str = type_decl->get_string();
+			str += PROTOBJ_SUFFIX;
+			emit_load_address(ACC, (char*)str.c_str(), s);
 		}
+		emit_jal("Object.copy", s);
 	}
 }
 
@@ -1561,7 +1552,12 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
 	{
 		if (isNoExpr((*i)->init))
 		{
-			emit_code_for_uninitialized_object((*i)->type_decl, str);
+			// Int, String and Bool have default initialization policy
+			// Otherwise it will be 0 (NULL)
+			if ((*i)->type_decl == Str || (*i)->type_decl == Int || (*i)->type_decl == Bool)
+				emit_code_for_uninitialized_object((*i)->type_decl, str);
+			else
+				emit_move(ACC, ZERO, str);
 		}
 		else
 		{
