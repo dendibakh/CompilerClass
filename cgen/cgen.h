@@ -57,8 +57,9 @@ private:
 
    void emitClassNameTab();
    void emitDispTab();
-   void emitDispTabWithParents(CgenNodeP cl, std::vector<Symbol>& classDispTab);
+   void collectDispTabWithParents(CgenNodeP cl, std::vector<Symbol>& classDispTab);
    void generateClassDispTab(CgenNodeP cl, std::vector<Symbol>& classDispTab);
+   Symbol getOverloadedMethodOwner(CgenNodeP cl, Symbol method_name);
 
    void emitClassObjTab();
    void generateInitMethods();

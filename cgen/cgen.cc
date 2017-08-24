@@ -1449,6 +1449,7 @@ void CgenClassTable::emitDispTab()
   str << Object << DISPTAB_SUFFIX << LABEL;
   {
 	  std::map<Symbol, std::vector<Symbol> >::iterator classDispTab = dispTabs.insert(std::make_pair(Object, std::vector<Symbol>() ) ).first;
+	  collectDispTabWithParents(lookup(Object), classDispTab->second);
 	  generateClassDispTab(lookup(Object), classDispTab->second);
   }
 
@@ -1459,34 +1460,59 @@ void CgenClassTable::emitDispTab()
        str << l->hd()->name << DISPTAB_SUFFIX << LABEL;
 
 	std::map<Symbol, std::vector<Symbol> >::iterator classDispTab = dispTabs.insert(std::make_pair(l->hd()->name, std::vector<Symbol>() ) ).first;
-	emitDispTabWithParents(l->hd(), classDispTab->second);
+	collectDispTabWithParents(l->hd(), classDispTab->second);
+	generateClassDispTab(l->hd(), classDispTab->second);
      }
   }
 }
 
-void CgenClassTable::emitDispTabWithParents(CgenNodeP cl, std::vector<Symbol>& classDispTab)
+void CgenClassTable::collectDispTabWithParents(CgenNodeP cl, std::vector<Symbol>& classDispTab)
 {
 	if (cl->name == No_class)
 		return;
 	if (cl->name == prim_slot)
 		return;
 	
-	emitDispTabWithParents(cl->get_parentnd(), classDispTab);
-	generateClassDispTab(cl, classDispTab);
-	// todo: Some methods could be overwritten in derived classes. Fix that.
-}
+	collectDispTabWithParents(cl->get_parentnd(), classDispTab);
 
-void CgenClassTable::generateClassDispTab(CgenNodeP cl, std::vector<Symbol>& classDispTab)
-{
 	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
 	{
 		method_class* meth_ptr = dynamic_cast<method_class*>(cl->features->nth(i));
 		if (meth_ptr)
 		{
-			str << WORD << cl->name << METHOD_SEP << meth_ptr->name << endl;
-			classDispTab.push_back(meth_ptr->name);
+			std::vector<Symbol>::iterator index = std::find(classDispTab.begin(), classDispTab.end(), meth_ptr->name);
+			if (index == classDispTab.end())
+				classDispTab.push_back(meth_ptr->name);		
 		}
 	}
+}
+
+void CgenClassTable::generateClassDispTab(CgenNodeP cl, std::vector<Symbol>& classDispTab)
+{
+	for (std::vector<Symbol>::iterator iter = classDispTab.begin(); iter != classDispTab.end(); ++iter)
+	{
+		str << WORD << getOverloadedMethodOwner(cl, *iter) << METHOD_SEP << *iter << endl;
+	}
+}
+
+Symbol CgenClassTable::getOverloadedMethodOwner(CgenNodeP cl, Symbol method_name)
+{
+	if (cl->name == No_class)
+		return cl->name;
+	if (cl->name == prim_slot)
+		return cl->name;
+
+	for(int i = cl->features->first(); cl->features->more(i); i = cl->features->next(i))
+	{
+		method_class* meth_ptr = dynamic_cast<method_class*>(cl->features->nth(i));
+		if (meth_ptr)
+		{
+			if (meth_ptr->name == method_name)
+				return cl->name;
+		}
+	}
+
+	return getOverloadedMethodOwner(cl->get_parentnd(), method_name);
 }
 
 void CgenClassTable::emitClassObjTab()
@@ -1962,6 +1988,10 @@ void new__class::code(ostream &s)
 	  s << COMMENT << " coding new " << type_name << " expression" << endl;
 
 	emit_code_for_uninitialized_object(type_name, s);
+
+	std::string str = type_name->get_string();
+	str += CLASSINIT_SUFFIX;
+	emit_jal((char*)str.c_str(), s);
 }
 
 void isvoid_class::code(ostream &s) 
