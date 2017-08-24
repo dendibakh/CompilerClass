@@ -27,9 +27,9 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 1;
+const int cgen_debug = 0;
 const int size_debug = 0;
-const int cgen_comments = 1;
+const int cgen_comments = 0;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -1425,32 +1425,22 @@ void CgenClassTable::emitClassNameTab()
 {
   str << CLASSNAMETAB << LABEL;
 
-  std::vector<CgenNodeP> v;
-  v.push_back(root());
-  
-  while (!v.empty())
+  std::map<int, Symbol> classTagsRev;
+
+  for (std::map<Symbol, int>::iterator it = classTags.begin(); it != classTags.end(); ++it)
   {
-	for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
+	classTagsRev[it->second] = it->first;
+  }
+
+  for (std::map<int, Symbol>::iterator it = classTagsRev.begin(); it != classTagsRev.end(); ++it)
+  {
+	StringEntry* entry = stringtable.lookup_string(it->second->get_string());
+     	if (entry)
 	{
-		StringEntry* entry = stringtable.lookup_string((*i)->name->get_string());
-	     	if (entry)
-		{
 			str << WORD; 
 			entry->code_ref(str);
 			str << endl;
-		}
 	}
-
-	std::vector<CgenNodeP> temp;
-
-	for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
-	{
-		for(List<CgenNode>* l = (*i)->get_children(); l; l = l->tl())
-		{
-			temp.push_back(l->hd());
-		}
-	}
-	v = temp;
   }
 }
 
