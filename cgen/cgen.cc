@@ -754,6 +754,16 @@ namespace
 		}
 		emit_jal("Object.copy", s);
 	}
+
+	void emit_abort_if_object_isvoid(ostream &s)
+	{
+		emit_bne(ACC, ZERO, branchInc, s);
+		emit_load_address(ACC, "str_const0", s);
+		emit_load_imm(T1, 1, s);
+		emit_jal("_dispatch_abort", s);
+		emit_label_def(branchInc, s);
+		branchInc++;
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1730,6 +1740,8 @@ void static_dispatch_class::code(ostream &s)
 	// by convention, self is always in ACC when calling function
 	expr->code(s);
 
+	emit_abort_if_object_isvoid(s);
+
 	// calling the function
 	std::string func_name = type_name->get_string();
 	func_name += ".";
@@ -1776,8 +1788,9 @@ void dispatch_class::code(ostream &s)
 		}
 
 		// by convention, self is always in ACC when calling function
-
 		expr->code(s);
+
+		emit_abort_if_object_isvoid(s);
 
 		if (cgen_comments)
 		  s << COMMENT << " \t calling " << expr->type << "::" << name << endl;
@@ -1840,9 +1853,19 @@ void loop_class::code(ostream &s)
 	branchInc++;
 
 	emit_label_def(saveLabelBegin, s);
-	pred->code(s);
 
+	// this fixes dispatch-void-dynamic.cl case: if loop iterates 0 times, 
+	// predicate result (in ACC) was treated as a result of the loop
+	emit_push(ACC, s);
+
+	pred->code(s);
+	
 	emit_load(T1, 3, ACC, s);
+
+	// restore value in ACC.
+	emit_addiu(SP,SP,4,s);
+	emit_load(ACC,0,SP,s);
+
 	emit_beqz(T1, saveLabelEnd, s);	
 
 	body->code(s);
@@ -1871,10 +1894,16 @@ void let_class::code(ostream &s)
 
   if (isNoExpr(init))
   {
-	emit_code_for_uninitialized_object(type_decl, s);
+	// Int, String and Bool have default initialization policy
+	// Otherwise it will be 0 (NULL)
+	if (type_decl == Str || type_decl == Int || type_decl == Bool)
+		emit_code_for_uninitialized_object(type_decl, s);
+	else
+		emit_move(ACC, ZERO, s);
   }
   else
   {
+	emit_move(ACC, ZERO, s); // by default object is NULL. It can be not initialized properly (see dispatch-void-dynamic.cl)
 	init->code(s);
   }
 
