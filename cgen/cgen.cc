@@ -1275,7 +1275,7 @@ void CgenClassTable::code()
 
 void CgenClassTable::assignClassTags()
 {
-//calculateClassSize(nds->tl()->hd());
+  //calculateClassSize(lookup(Main));
   for(List<CgenNode> *l = nds; l; l = l->tl())
   {
      std::map<Symbol, int>::iterator it = classTags.find(l->hd()->name);
@@ -1393,7 +1393,7 @@ int CgenClassTable::calculateAttrSize(CgenNodeP cl)
 		attr_class* attr_ptr = dynamic_cast<attr_class*>(cl->features->nth(i));
 		if (attr_ptr)
 		{
-			own += calculateAttrSize(lookup(attr_ptr->type_decl));
+			own += 1;//calculateAttrSize(lookup(attr_ptr->type_decl));
 		}
 	}
 
@@ -1743,10 +1743,12 @@ void static_dispatch_class::code(ostream &s)
 	emit_abort_if_object_isvoid(s);
 
 	// calling the function
-	std::string func_name = type_name->get_string();
-	func_name += ".";
-	func_name += name->get_string();
-	emit_jal((char*)func_name.c_str(), s);
+	std::string str = type_name->get_string();
+	str += DISPTAB_SUFFIX;
+
+	emit_load_address(T1, (char*)str.c_str(), s); // load dispatch table
+	emit_load(T1, getClassDispTabOffset(type_name, name), T1, s); // load function address								
+	emit_jalr(T1, s); // call the function	
 
 	if (cgen_comments)
 	  s << COMMENT << " coding static dispatch end" << endl;
