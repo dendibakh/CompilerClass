@@ -1713,7 +1713,31 @@ void assign_class::code(ostream &s)
 	  s << COMMENT << " coding assign to " << name << " end" << endl;
 }
 
-void static_dispatch_class::code(ostream &s) {
+void static_dispatch_class::code(ostream &s) 
+{
+	if (cgen_comments)
+	  s << COMMENT << " coding static dispatch begin" << endl;
+
+	if (cgen_comments)
+	  s << COMMENT << " \t pushing arguments to the stack" << endl;
+	// pushing arguments to the stack
+	for(int i = 0; i < actual->len(); i++)
+	{
+		actual->nth(i)->code(s);
+		emit_push(ACC, s);
+	}
+
+	// by convention, self is always in ACC when calling function
+	expr->code(s);
+
+	// calling the function
+	std::string func_name = type_name->get_string();
+	func_name += ".";
+	func_name += name->get_string();
+	emit_jal((char*)func_name.c_str(), s);
+
+	if (cgen_comments)
+	  s << COMMENT << " coding static dispatch end" << endl;
 }
 
 void dispatch_class::code(ostream &s) 
@@ -2032,4 +2056,5 @@ void object_class::code(ostream &s)
 		emit_load(ACC, getClassAttrOffset(cur_class, name), SELF, s);
 	}
 }
+
 
