@@ -1878,7 +1878,50 @@ void loop_class::code(ostream &s)
 	  s << COMMENT << " coding loop end" << endl;
 }
 
-void typcase_class::code(ostream &s) {
+void typcase_class::code(ostream &s) 
+{
+  if (cgen_comments)
+	  s << COMMENT << " coding case begin" << endl;
+
+  expr->code(s);
+
+  emit_load(T1, 0, ACC, s); // loading tag
+
+  int labelCaseExit = branchInc;
+  branchInc++;
+
+	for(int i = cases->first(); cases->more(i); i = cases->next(i))
+	{
+		branch_class* branch_ptr = dynamic_cast<branch_class*>(cases->nth(i));
+		if (branch_ptr)
+		{
+			if (cgen_comments)
+				s << COMMENT << " coding case" << endl;
+
+			int labelCheckNextCase = branchInc;
+			branchInc++;
+
+			// load branch class tag
+			std::string str = branch_ptr->type_decl->get_string();
+			str += PROTOBJ_SUFFIX;
+			emit_load_address(ACC, (char*)str.c_str(), s);
+			emit_load(ACC, 0, ACC, s); // loading tag
+		
+			emit_bne(T1, ACC, labelCheckNextCase, s);
+
+			temporaries.push_back(branch_ptr->name);
+			branch_ptr->expr->code(s);
+			temporaries.pop_back();
+
+			emit_branch(labelCaseExit, s);
+			emit_label_def(labelCheckNextCase, s);
+		}
+	}
+
+  emit_label_def(labelCaseExit, s);
+
+  if (cgen_comments)
+	  s << COMMENT << " coding case end" << endl;
 }
 
 void block_class::code(ostream &s) 
