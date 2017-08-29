@@ -25,7 +25,7 @@ private:
    int boolclasstag;
    
    int classTagInc;
-   std::map<Symbol, int> classTags;
+   //std::map<Symbol, int> classTags;
 
    std::vector<attr_class*> attrsToInit;
 

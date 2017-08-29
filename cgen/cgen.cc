@@ -27,9 +27,9 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 0;
+const int cgen_debug = 1;
 const int size_debug = 0;
-const int cgen_comments = 0;
+const int cgen_comments = 1;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -119,6 +119,7 @@ namespace
 	Symbol cur_class;
 	std::vector<Symbol> cur_agrs;
 	std::map<Symbol, std::vector<Symbol> > dispTabs;
+	std::map<Symbol, int> classTags;
 	std::map<Symbol, std::vector<attr_class*> > attrs;
 	std::vector<Symbol> temporaries; // space for variables in let expressions
 	int cur_numberOfTemps = 0;
@@ -618,6 +619,13 @@ static void emit_blti(char *src1, int imm, int label, ostream &s)
 static void emit_bgti(char *src1, int imm, int label, ostream &s)
 {
   s << BGT << src1 << " " << imm << " ";
+  emit_label_ref(label,s);
+  s << endl;
+}
+
+static void emit_bgt(char *src1, char *src2, int label, ostream &s)
+{
+  s << BGT << src1 << " " << src2 << " ";
   emit_label_ref(label,s);
   s << endl;
 }
@@ -1890,32 +1898,45 @@ void typcase_class::code(ostream &s)
   int labelCaseExit = branchInc;
   branchInc++;
 
+	// ToDo: make the right order of case branches.
+	// lay classes in hierarchy according tags.
+	// change eq to less than
+
+	std::map<int, branch_class*> branchOrder;
+
 	for(int i = cases->first(); cases->more(i); i = cases->next(i))
 	{
 		branch_class* branch_ptr = dynamic_cast<branch_class*>(cases->nth(i));
 		if (branch_ptr)
 		{
-			if (cgen_comments)
-				s << COMMENT << " coding case" << endl;
+			branchOrder[classTags.find(branch_ptr->type_decl)->second] = branch_ptr;
+		}	
+	}
 
-			int labelCheckNextCase = branchInc;
-			branchInc++;
+//	for(int i = cases->first(); cases->more(i); i = cases->next(i))
+	for (std::map<int, branch_class*>::reverse_iterator iter = branchOrder.rbegin(); iter != branchOrder.rend(); iter++)
+	{
+		branch_class* branch_ptr = iter->second;
+		if (cgen_comments)
+			s << COMMENT << " coding case for " << branch_ptr->type_decl << endl;
 
-			// load branch class tag
-			std::string str = branch_ptr->type_decl->get_string();
-			str += PROTOBJ_SUFFIX;
-			emit_load_address(ACC, (char*)str.c_str(), s);
-			emit_load(ACC, 0, ACC, s); // loading tag
-		
-			emit_bne(T1, ACC, labelCheckNextCase, s);
+		int labelCheckNextCase = branchInc;
+		branchInc++;
 
-			temporaries.push_back(branch_ptr->name);
-			branch_ptr->expr->code(s);
-			temporaries.pop_back();
+		// load branch class tag
+		std::string str = branch_ptr->type_decl->get_string();
+		str += PROTOBJ_SUFFIX;
+		emit_load_address(ACC, (char*)str.c_str(), s);
+		emit_load(ACC, 0, ACC, s); // loading tag
+	
+		emit_bgt(T1, ACC, labelCheckNextCase, s);
 
-			emit_branch(labelCaseExit, s);
-			emit_label_def(labelCheckNextCase, s);
-		}
+		temporaries.push_back(branch_ptr->name);
+		branch_ptr->expr->code(s);
+		temporaries.pop_back();
+
+		emit_branch(labelCaseExit, s);
+		emit_label_def(labelCheckNextCase, s);
 	}
 
   emit_label_def(labelCaseExit, s);
