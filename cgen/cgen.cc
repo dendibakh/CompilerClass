@@ -122,6 +122,8 @@ namespace
 	std::map<Symbol, int> classTags;
 	std::map<Symbol, std::vector<attr_class*> > attrs;
 	std::vector<Symbol> temporaries; // space for variables in let expressions
+
+	std::map<int, std::vector<int> > derivedClassesTags;
 	int cur_numberOfTemps = 0;
 
 	int branchInc = 0;
@@ -584,6 +586,13 @@ static void emit_beqz(char *source, int label, ostream &s)
 static void emit_beq(char *src1, char *src2, int label, ostream &s)
 {
   s << BEQ << src1 << " " << src2 << " ";
+  emit_label_ref(label,s);
+  s << endl;
+}
+
+static void emit_beqi(char *src1, int imm, int label, ostream &s)
+{
+  s << BEQ << src1 << " " << imm << " ";
   emit_label_ref(label,s);
   s << endl;
 }
@@ -1280,6 +1289,18 @@ void CgenClassTable::code()
   generateClassMethods();
 }
 
+namespace
+{
+	void collectDerivedTags(CgenNodeP cl, std::vector<int>& tags)
+	{
+		tags.push_back(classTags[cl->name]);
+		List<CgenNode> * kids = cl->get_children();
+		for(List<CgenNode> *k = kids; k; k = k->tl())
+		{
+			collectDerivedTags(k->hd(), tags);
+		}
+	}
+}
 
 void CgenClassTable::assignClassTags()
 {
@@ -1297,6 +1318,23 @@ void CgenClassTable::assignClassTags()
      {   
         if (cgen_debug) 
 	   cout << "symb: " << l->hd()->name << " tag: " << it->second << "size: " << calculateClassSize(l->hd()) << endl;
+     }
+  }
+
+  for(List<CgenNode> *l = nds; l; l = l->tl())
+  {
+     std::vector<int> tags;
+     collectDerivedTags(l->hd(), tags);
+     derivedClassesTags[classTags[l->hd()->name]] = tags;
+
+     if (cgen_debug)
+     {
+	cout << "tags for " << l->hd()->name << " : ";
+	for (std::vector<int>::iterator i = tags.begin(); i != tags.end(); i++)
+	{
+		cout << *i << ' ';
+	}
+	cout << endl;
      }
   }
 }
@@ -1898,10 +1936,6 @@ void typcase_class::code(ostream &s)
   int labelCaseExit = branchInc;
   branchInc++;
 
-	// ToDo: make the right order of case branches.
-	// lay classes in hierarchy according tags.
-	// change eq to less than
-
 	std::map<int, branch_class*> branchOrder;
 
 	for(int i = cases->first(); cases->more(i); i = cases->next(i))
@@ -1913,31 +1947,40 @@ void typcase_class::code(ostream &s)
 		}	
 	}
 
-//	for(int i = cases->first(); cases->more(i); i = cases->next(i))
 	for (std::map<int, branch_class*>::reverse_iterator iter = branchOrder.rbegin(); iter != branchOrder.rend(); iter++)
 	{
 		branch_class* branch_ptr = iter->second;
 		if (cgen_comments)
 			s << COMMENT << " coding case for " << branch_ptr->type_decl << endl;
 
+		int labelBranchTaken = branchInc;
+		branchInc++;
 		int labelCheckNextCase = branchInc;
 		branchInc++;
 
-		// load branch class tag
-		std::string str = branch_ptr->type_decl->get_string();
-		str += PROTOBJ_SUFFIX;
-		emit_load_address(ACC, (char*)str.c_str(), s);
-		emit_load(ACC, 0, ACC, s); // loading tag
-	
-		emit_bgt(T1, ACC, labelCheckNextCase, s);
+		// check if the object derives from a class in the branch
+		std::vector<int> tags = derivedClassesTags[classTags[branch_ptr->type_decl]];
+		for (std::vector<int>::iterator i = tags.begin(); i != tags.end(); i++)
+		{
+			emit_beqi(T1, *i, labelBranchTaken, s);
+		}
 
+		// if no match - jump to the next branch
+		emit_branch(labelCheckNextCase, s);
+
+		// if match - process it and jump to exit
 		temporaries.push_back(branch_ptr->name);
+		emit_label_def(labelBranchTaken, s);
 		branch_ptr->expr->code(s);
+		emit_branch(labelCaseExit, s);
 		temporaries.pop_back();
 
-		emit_branch(labelCaseExit, s);
+		// here is the beginning of next branch
 		emit_label_def(labelCheckNextCase, s);
 	}
+
+  // if none of the branches were taken - abort
+  emit_jal("_case_abort", s);
 
   emit_label_def(labelCaseExit, s);
 
