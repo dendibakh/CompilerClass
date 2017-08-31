@@ -781,6 +781,16 @@ namespace
 		emit_label_def(branchInc, s);
 		branchInc++;
 	}
+
+	void emit_case_abort_if_expr_is_void(ostream &s)
+	{
+		emit_bne(ACC, ZERO, branchInc, s);
+		emit_load_address(ACC, "str_const0", s);
+		emit_load_imm(T1, 1, s);
+		emit_jal("_case_abort2", s);
+		emit_label_def(branchInc, s);
+		branchInc++;
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1930,6 +1940,8 @@ void typcase_class::code(ostream &s)
 	  s << COMMENT << " coding case begin" << endl;
 
   expr->code(s);
+
+  emit_case_abort_if_expr_is_void(s);
 
   emit_load(T1, 0, ACC, s); // loading tag
 
