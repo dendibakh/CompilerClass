@@ -718,10 +718,14 @@ namespace
 	void emit_predicate_code_begin(Expression e1, Expression e2, ostream &s)
 	{
 		e1->code(s);
-		emit_load(ACC, 3, ACC, s);
+		// if Int or Bool - compare values, otherwise compare pointers (not sure what to do with String).
+		if (e1->type == Int && e1->type == Bool)
+			emit_load(ACC, 3, ACC, s);
 		emit_push(ACC, s);
 		e2->code(s);
-		emit_load(ACC, 3, ACC, s);
+		// if Int or Bool - compare values, otherwise compare pointers (not sure what to do with String).
+		if (e1->type == Int && e1->type == Bool)
+			emit_load(ACC, 3, ACC, s);
 		emit_load(T1,1,SP,s);
 		emit_addiu(SP,SP,4,s);
 	}
