@@ -718,14 +718,19 @@ namespace
 	void emit_predicate_code_begin(Expression e1, Expression e2, ostream &s)
 	{
 		e1->code(s);
-		// if Int or Bool - compare values, otherwise compare pointers (not sure what to do with String).
-		if (e1->type == Int || e1->type == Bool)
-			emit_load(ACC, 3, ACC, s);
 		emit_push(ACC, s);
 		e2->code(s);
-		// if Int or Bool - compare values, otherwise compare pointers (not sure what to do with String).
-		if (e1->type == Int || e1->type == Bool)
-			emit_load(ACC, 3, ACC, s);
+		emit_load(T1,1,SP,s);
+		emit_addiu(SP,SP,4,s);
+	}
+
+	void emit_predicate_code_Int_begin(Expression e1, Expression e2, ostream &s)
+	{
+		e1->code(s);
+		emit_load(ACC, 3, ACC, s); // take int value from the Int object
+		emit_push(ACC, s);
+		e2->code(s);
+		emit_load(ACC, 3, ACC, s); // take int value from the Int object
 		emit_load(T1,1,SP,s);
 		emit_addiu(SP,SP,4,s);
 	}
@@ -2090,7 +2095,7 @@ void lt_class::code(ostream &s)
   	if (cgen_comments)
 	  s << COMMENT << " coding conditional begin" << endl;
 
-	emit_predicate_code_begin(e1, e2, s);
+	emit_predicate_code_Int_begin(e1, e2, s);
 
 	emit_blt(T1, ACC, branchInc, s);
 
@@ -2107,7 +2112,7 @@ void eq_class::code(ostream &s)
 
 	emit_predicate_code_begin(e1, e2, s);
 
-	if (e1->type == Str)
+	if (e1->type == Str || e1->type == Bool || e1->type == Int)
 	{
 		emit_move("$t2", ACC, s);
 		emit_load_bool(ACC, BoolConst(true), s);
@@ -2129,7 +2134,7 @@ void leq_class::code(ostream &s)
   	if (cgen_comments)
 	  s << COMMENT << " coding conditional begin" << endl;
 
-	emit_predicate_code_begin(e1, e2, s);
+	emit_predicate_code_Int_begin(e1, e2, s);
 
 	emit_bleq(T1, ACC, branchInc, s);
 
