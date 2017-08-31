@@ -25,6 +25,7 @@
 #include "cgen.h"
 #include "cgen_gc.h"
 #include <algorithm>
+#include <set>
 
 extern void emit_string_constant(ostream& str, char *s);
 const int cgen_debug = 0;
@@ -122,6 +123,7 @@ namespace
 	std::map<Symbol, int> classTags;
 	std::map<Symbol, std::vector<attr_class*> > attrs;
 	std::vector<Symbol> temporaries; // space for variables in let expressions
+	std::set<Symbol> caseLocals;
 
 	std::map<int, std::vector<int> > derivedClassesTags;
 	int cur_numberOfTemps = 0;
@@ -427,6 +429,11 @@ namespace
 	bool isNoExpr(Expression expr)
 	{
 		return dynamic_cast<no_expr_class*>(expr) != NULL;
+	}
+
+	bool isSymbolOneOfCaseLocals(Symbol name)
+	{
+		return caseLocals.find(name) != caseLocals.end();
 	}
 }
 
@@ -1990,11 +1997,11 @@ void typcase_class::code(ostream &s)
 		emit_branch(labelCheckNextCase, s);
 
 		// if match - process it and jump to exit
-		temporaries.push_back(branch_ptr->name);
+		caseLocals.insert(branch_ptr->name);
 		emit_label_def(labelBranchTaken, s);
 		branch_ptr->expr->code(s);
 		emit_branch(labelCaseExit, s);
-		temporaries.pop_back();
+		caseLocals.erase(branch_ptr->name);
 
 		// here is the beginning of next branch
 		emit_label_def(labelCheckNextCase, s);
@@ -2112,6 +2119,7 @@ void eq_class::code(ostream &s)
 
 	emit_predicate_code_begin(e1, e2, s);
 
+	// Primitive types can be compared for equality. Otherwise comparing by pointers.
 	if (e1->type == Str || e1->type == Bool || e1->type == Int)
 	{
 		emit_move("$t2", ACC, s);
@@ -2228,6 +2236,10 @@ void object_class::code(ostream &s)
 	if (name == self)
 	{
 		emit_move(ACC, SELF, s);
+	}
+	else if (isSymbolOneOfCaseLocals(name))
+	{
+		// do nothing, proper object is already in the ACC.
 	}
   	else if (isSymbolOneOfTemporaries(name))
 	{
