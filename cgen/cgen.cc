@@ -27,9 +27,9 @@
 #include <algorithm>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 1;
+const int cgen_debug = 0;
 const int size_debug = 0;
-const int cgen_comments = 1;
+const int cgen_comments = 0;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -2161,11 +2161,29 @@ void new__class::code(ostream &s)
   	if (cgen_comments)
 	  s << COMMENT << " coding new " << type_name << " expression" << endl;
 
-	emit_code_for_uninitialized_object(type_name, s);
+	if (type_name == SELF_TYPE)
+	{
+		// ToDo: maybe put the same in emit_code_for_uninitialized_object
+		emit_load_address(T1, "class_objTab", s);
+		emit_load(T2, 0, SELF, s);
+		emit_sll(T2, T2, 3, s);
+		emit_addu(T1, T1, T2, s);
+		emit_move("$s1", T1, s);
+		emit_load(ACC, 0, T1, s);
 
-	std::string str = type_name->get_string();
-	str += CLASSINIT_SUFFIX;
-	emit_jal((char*)str.c_str(), s);
+		emit_jal("Object.copy", s);
+		
+		emit_load(T1, 1, "$s1", s);
+		emit_jalr(T1, s);
+	}
+	else
+	{
+		emit_code_for_uninitialized_object(type_name, s);
+
+		std::string str = type_name->get_string();
+		str += CLASSINIT_SUFFIX;
+		emit_jal((char*)str.c_str(), s);
+	}
 }
 
 void isvoid_class::code(ostream &s) 
