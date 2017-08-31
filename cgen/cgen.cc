@@ -719,12 +719,12 @@ namespace
 	{
 		e1->code(s);
 		// if Int or Bool - compare values, otherwise compare pointers (not sure what to do with String).
-		if (e1->type == Int && e1->type == Bool)
+		if (e1->type == Int || e1->type == Bool)
 			emit_load(ACC, 3, ACC, s);
 		emit_push(ACC, s);
 		e2->code(s);
 		// if Int or Bool - compare values, otherwise compare pointers (not sure what to do with String).
-		if (e1->type == Int && e1->type == Bool)
+		if (e1->type == Int || e1->type == Bool)
 			emit_load(ACC, 3, ACC, s);
 		emit_load(T1,1,SP,s);
 		emit_addiu(SP,SP,4,s);
@@ -2107,9 +2107,18 @@ void eq_class::code(ostream &s)
 
 	emit_predicate_code_begin(e1, e2, s);
 
-	emit_beq(T1, ACC, branchInc, s);
-
-	emit_predicate_code_finish(s);
+	if (e1->type == Str)
+	{
+		emit_move("$t2", ACC, s);
+		emit_load_bool(ACC, BoolConst(true), s);
+		emit_load_bool("$a1", BoolConst(false), s);
+		emit_jal("equality_test", s);
+	}
+	else
+	{
+		emit_beq(T1, ACC, branchInc, s);
+		emit_predicate_code_finish(s);
+	}
 
   	if (cgen_comments)
 	  s << COMMENT << " coding conditional end" << endl;
