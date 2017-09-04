@@ -28,9 +28,9 @@
 #include <set>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 0;
+const int cgen_debug = 1;
 const int size_debug = 0;
-const int cgen_comments = 0;
+const int cgen_comments = 1;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -1965,14 +1965,52 @@ void typcase_class::code(ostream &s)
   branchInc++;
 
 	std::map<int, branch_class*> branchOrder;
+	std::map<int, std::vector<int> > currentderivedClassesTags = derivedClassesTags;
+
+	if (cgen_debug)
+		cout << "before:" << endl;
+
+	for (std::map<int, std::vector<int> >::iterator i = currentderivedClassesTags.begin(); i != currentderivedClassesTags.end(); ++i)
+	{
+		if (cgen_debug)
+		{
+			cout << "Tags for " << i->first << ":";
+			for (std::vector<int>::iterator it = i->second.begin(); it != i->second.end(); ++it)
+			{
+					cout << *it << " ";
+			}
+			cout << endl;
+		}
+	}
 
 	for(int i = cases->first(); cases->more(i); i = cases->next(i))
 	{
 		branch_class* branch_ptr = dynamic_cast<branch_class*>(cases->nth(i));
 		if (branch_ptr)
 		{
-			branchOrder[classTags.find(branch_ptr->type_decl)->second] = branch_ptr;
+			int tag = classTags.find(branch_ptr->type_decl)->second;
+			branchOrder[tag] = branch_ptr;
+			for (std::map<int, std::vector<int> >::iterator i = currentderivedClassesTags.begin(); i != currentderivedClassesTags.end(); ++i)
+			{
+				i->second.erase( std::remove_if(i->second.begin(), i->second.end(), std::bind1st(std::less<int>(), tag)), i->second.end());
+			}
 		}	
+	}
+	
+	if (cgen_debug)
+		cout << "after:" << endl;
+
+	for (std::map<int, std::vector<int> >::iterator i = currentderivedClassesTags.begin(); i != currentderivedClassesTags.end(); ++i)
+	{
+		if (cgen_debug)
+		{
+			cout << "Tags for " << i->first << ":";
+			for (std::vector<int>::iterator it = i->second.begin(); it != i->second.end(); ++it)
+			{
+					cout << *it << " ";
+			}
+			cout << endl;
+		}
 	}
 
 	for (std::map<int, branch_class*>::reverse_iterator iter = branchOrder.rbegin(); iter != branchOrder.rend(); iter++)
@@ -1987,7 +2025,7 @@ void typcase_class::code(ostream &s)
 		branchInc++;
 
 		// check if the object derives from a class in the branch
-		std::vector<int> tags = derivedClassesTags[classTags[branch_ptr->type_decl]];
+		std::vector<int> tags = currentderivedClassesTags[classTags[branch_ptr->type_decl]];
 		for (std::vector<int>::iterator i = tags.begin(); i != tags.end(); i++)
 		{
 			emit_beqi(T1, *i, labelBranchTaken, s);
