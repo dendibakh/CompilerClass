@@ -2094,7 +2094,10 @@ void divide_class::code(ostream &s)
 void neg_class::code(ostream &s) 
 {
 	e1->code(s);
-	emit_neg(ACC,ACC,s);
+	emit_jal("Object.copy", s); // generate a temporary
+	emit_load(T1, 3, ACC, s);
+	emit_neg(T1,T1,s);
+	emit_store(T1, 3, ACC, s);
 }
 
 void lt_class::code(ostream &s) 
