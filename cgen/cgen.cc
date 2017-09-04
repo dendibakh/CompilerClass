@@ -26,11 +26,12 @@
 #include "cgen_gc.h"
 #include <algorithm>
 #include <set>
+#include <stack>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 1;
+const int cgen_debug = 0;
 const int size_debug = 0;
-const int cgen_comments = 1;
+const int cgen_comments = 0;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -126,6 +127,7 @@ namespace
 	std::set<Symbol> caseLocals;
 
 	std::map<int, std::vector<int> > derivedClassesTags;
+	std::stack<int> backwardClassHierarchyTags;
 	int cur_numberOfTemps = 0;
 
 	int branchInc = 0;
@@ -1276,7 +1278,33 @@ void CgenNode::set_parentnd(CgenNodeP p)
   parentnd = p;
 }
 
+namespace
+{
+	void collectBackwardHierarchy(CgenNodeP root)
+	{
+		std::vector<CgenNodeP> v;
+		v.push_back(root);
 
+		while (!v.empty())
+		{
+			for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
+			{
+				backwardClassHierarchyTags.push(classTags[(*i)->name]);
+			}
+
+			std::vector<CgenNodeP> temp;
+
+			for (std::vector<CgenNodeP>::iterator i = v.begin(); i != v.end(); i++)
+			{
+				for(List<CgenNode>* l = (*i)->get_children(); l; l = l->tl())
+				{
+					temp.push_back(l->hd());
+				}
+			}
+			v = temp;
+		}
+	}
+}
 
 void CgenClassTable::code()
 {
@@ -1290,6 +1318,7 @@ void CgenClassTable::code()
   code_constants();
 
   assignClassTags();
+  collectBackwardHierarchy(root());
 
   storeAttrOffsets();
 
@@ -1950,6 +1979,56 @@ void loop_class::code(ostream &s)
 	  s << COMMENT << " coding loop end" << endl;
 }
 
+namespace
+{
+	std::map<int, std::vector<int> > extractTagsForCase(const std::set<int>& tags)
+	{
+		std::map<int, std::vector<int> > currentTags;
+
+		std::set<int> includedTags;
+
+		// starting from most derived class - match derived tags to a particular branch
+		std::stack<int> backwardTags = backwardClassHierarchyTags;
+		while(!backwardTags.empty())
+		{
+			int top = backwardTags.top();
+			backwardTags.pop();
+			if (tags.find(top) != tags.end()) // only caring for classes that participate in current branch
+			{
+				std::map<int, std::vector<int> >::iterator it = derivedClassesTags.find(top);
+				for (std::vector<int>::iterator iter = it->second.begin(); iter != it->second.end(); ++iter)
+				{
+					// if tag is already included - it means it objects of this clasee will be handled in another branch
+					if (includedTags.find(*iter) == includedTags.end())
+					{
+						currentTags[top].push_back(*iter);
+						includedTags.insert(*iter); 
+					}
+				}
+			}
+		}
+
+		if (cgen_debug)
+		{
+			cout << "Tags into consideration:" << endl;
+
+			for (std::map<int, std::vector<int> >::iterator i = currentTags.begin(); i != currentTags.end(); ++i)
+			{
+				cout << "Tags for " << i->first << ":";
+				for (std::vector<int>::iterator it = i->second.begin(); it != i->second.end(); ++it)
+				{
+						cout << *it << " ";
+				}
+				cout << endl;
+			}
+	
+			cout << "Tags into consideration end." << endl;
+		}	
+		
+		return currentTags;	
+	}
+}
+
 void typcase_class::code(ostream &s) 
 {
   if (cgen_comments)
@@ -1964,85 +2043,51 @@ void typcase_class::code(ostream &s)
   int labelCaseExit = branchInc;
   branchInc++;
 
-	std::map<int, branch_class*> branchOrder;
-	std::map<int, std::vector<int> > currentderivedClassesTags = derivedClassesTags;
-
-	if (cgen_debug)
-		cout << "before:" << endl;
-
-	for (std::map<int, std::vector<int> >::iterator i = currentderivedClassesTags.begin(); i != currentderivedClassesTags.end(); ++i)
+	// collecting tags that are participating in current branch
+	std::set<int> tags;
+	for(int i = cases->first(); cases->more(i); i = cases->next(i))
 	{
-		if (cgen_debug)
-		{
-			cout << "Tags for " << i->first << ":";
-			for (std::vector<int>::iterator it = i->second.begin(); it != i->second.end(); ++it)
-			{
-					cout << *it << " ";
-			}
-			cout << endl;
-		}
+		branch_class* branch_ptr = dynamic_cast<branch_class*>(cases->nth(i));
+		if (branch_ptr)
+			tags.insert(classTags.find(branch_ptr->type_decl)->second);
 	}
+
+	// making lists of all derived tags that corresponf to a particular branch
+	std::map<int, std::vector<int> > currentTags = extractTagsForCase(tags);
 
 	for(int i = cases->first(); cases->more(i); i = cases->next(i))
 	{
 		branch_class* branch_ptr = dynamic_cast<branch_class*>(cases->nth(i));
 		if (branch_ptr)
 		{
-			int tag = classTags.find(branch_ptr->type_decl)->second;
-			branchOrder[tag] = branch_ptr;
-			for (std::map<int, std::vector<int> >::iterator i = currentderivedClassesTags.begin(); i != currentderivedClassesTags.end(); ++i)
+			if (cgen_comments)
+				s << COMMENT << " coding case for " << branch_ptr->type_decl << endl;
+
+			int labelBranchTaken = branchInc;
+			branchInc++;
+			int labelCheckNextCase = branchInc;
+			branchInc++;
+
+			// check if the object derives from a class in the branch
+			std::vector<int> ctags = currentTags[classTags[branch_ptr->type_decl]];
+			for (std::vector<int>::iterator i = ctags.begin(); i != ctags.end(); i++)
 			{
-				i->second.erase( std::remove_if(i->second.begin(), i->second.end(), std::bind1st(std::less<int>(), tag)), i->second.end());
+				emit_beqi(T1, *i, labelBranchTaken, s);
 			}
-		}	
-	}
-	
-	if (cgen_debug)
-		cout << "after:" << endl;
 
-	for (std::map<int, std::vector<int> >::iterator i = currentderivedClassesTags.begin(); i != currentderivedClassesTags.end(); ++i)
-	{
-		if (cgen_debug)
-		{
-			cout << "Tags for " << i->first << ":";
-			for (std::vector<int>::iterator it = i->second.begin(); it != i->second.end(); ++it)
-			{
-					cout << *it << " ";
-			}
-			cout << endl;
+			// if no match - jump to the next branch
+			emit_branch(labelCheckNextCase, s);
+
+			// if match - process it and jump to exit
+			caseLocals.insert(branch_ptr->name);
+			emit_label_def(labelBranchTaken, s);
+			branch_ptr->expr->code(s);
+			emit_branch(labelCaseExit, s);
+			caseLocals.erase(branch_ptr->name);
+
+			// here is the beginning of next branch
+			emit_label_def(labelCheckNextCase, s);
 		}
-	}
-
-	for (std::map<int, branch_class*>::reverse_iterator iter = branchOrder.rbegin(); iter != branchOrder.rend(); iter++)
-	{
-		branch_class* branch_ptr = iter->second;
-		if (cgen_comments)
-			s << COMMENT << " coding case for " << branch_ptr->type_decl << endl;
-
-		int labelBranchTaken = branchInc;
-		branchInc++;
-		int labelCheckNextCase = branchInc;
-		branchInc++;
-
-		// check if the object derives from a class in the branch
-		std::vector<int> tags = currentderivedClassesTags[classTags[branch_ptr->type_decl]];
-		for (std::vector<int>::iterator i = tags.begin(); i != tags.end(); i++)
-		{
-			emit_beqi(T1, *i, labelBranchTaken, s);
-		}
-
-		// if no match - jump to the next branch
-		emit_branch(labelCheckNextCase, s);
-
-		// if match - process it and jump to exit
-		caseLocals.insert(branch_ptr->name);
-		emit_label_def(labelBranchTaken, s);
-		branch_ptr->expr->code(s);
-		emit_branch(labelCaseExit, s);
-		caseLocals.erase(branch_ptr->name);
-
-		// here is the beginning of next branch
-		emit_label_def(labelCheckNextCase, s);
 	}
 
   // if none of the branches were taken - abort
