@@ -74,7 +74,8 @@ Symbol
        str_field,
        substr,
        type_name,
-       val;
+       val,
+       case_local;
 //
 // Initializing the predefined symbols.
 //
@@ -108,6 +109,7 @@ static void initialize_constants(void)
   substr      = idtable.add_string("substr");
   type_name   = idtable.add_string("type_name");
   val         = idtable.add_string("_val");
+  case_local  = idtable.add_string("_case_local");
 }
 
 static char *gc_init_names[] =
@@ -288,7 +290,7 @@ namespace
 					branch_class* branch_ptr = (branch_class*)expr->cases->nth(i);				
 					max = std::max(max, calculateSpaceForTemporaries(branch_ptr->expr));
 				}
-				return max;
+				return max + 1;
 			}
 		}
 		{
@@ -2035,6 +2037,8 @@ void typcase_class::code(ostream &s)
 	  s << COMMENT << " coding case begin" << endl;
 
   expr->code(s);
+  temporaries.push_back(case_local);
+  emit_store(ACC, getOffsetOfTemporary(case_local), FP, s);
 
   emit_case_abort_if_expr_is_void(s);
 
@@ -2094,6 +2098,8 @@ void typcase_class::code(ostream &s)
   emit_jal("_case_abort", s);
 
   emit_label_def(labelCaseExit, s);
+
+  temporaries.pop_back();
 
   if (cgen_comments)
 	  s << COMMENT << " coding case end" << endl;
@@ -2326,6 +2332,7 @@ void object_class::code(ostream &s)
 	else if (isSymbolOneOfCaseLocals(name))
 	{
 		// do nothing, proper object is already in the ACC.
+		emit_load(ACC, getOffsetOfTemporary(case_local), FP, s);
 	}
   	else if (isSymbolOneOfTemporaries(name))
 	{
