@@ -29,9 +29,9 @@
 #include <stack>
 
 extern void emit_string_constant(ostream& str, char *s);
-const int cgen_debug = 0;
+const int cgen_debug = 1;
 const int size_debug = 0;
-const int cgen_comments = 0;
+const int cgen_comments = 1;
 
 //
 // Three symbols from the semantic analyzer (semant.cc) are used.
@@ -285,7 +285,7 @@ namespace
 			if (expr)
 			{
 				int max = 0;
-				for(int i = expr->cases->first() + 1; expr->cases->more(i); i = expr->cases->next(i))
+				for(int i = expr->cases->first(); expr->cases->more(i); i = expr->cases->next(i))
 				{
 					branch_class* branch_ptr = (branch_class*)expr->cases->nth(i);				
 					max = std::max(max, calculateSpaceForTemporaries(branch_ptr->expr));
@@ -1676,7 +1676,7 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
 	     emit_jal((char*)s.c_str(), str);
      }
 
-     // Initialize attributes.
+        // Initialize attributes.
 	for (std::vector<attr_class*>::iterator i = attrsToInit.begin(); i != attrsToInit.end(); ++i)
 	{
 		if (isNoExpr((*i)->init))
@@ -1690,6 +1690,13 @@ void CgenClassTable::generateInitMethodForClass(Symbol cl)
 		}
 		else
 		{
+			/*temporaries.clear();
+			
+		     // calculate space for the temps
+		     cur_numberOfTemps = calculateSpaceForTemporaries((*i)->init);
+		     if (cgen_comments)
+			cout << "Temporaries for initializing " << (*i)->name << " : " << cur_numberOfTemps << endl;*/
+
 			(*i)->init->code(str);
 		}
 		emit_store(ACC, getClassAttrOffset(cur_class, (*i)->name), SELF, str);
@@ -2320,6 +2327,29 @@ void no_expr_class::code(ostream &s)
 {
 }
 
+namespace
+{
+	// local variables can shadow one another (see example in shadow-case-let.cl)
+	// that's why we should take the most inner variable - with min offset from the FP.
+	int getOffsetWithShadowing(Symbol name)
+	{
+		if (isSymbolOneOfCaseLocals(name) && isSymbolOneOfTemporaries(name))
+		{
+			return std::min(getOffsetOfTemporary(case_local),
+					getOffsetOfTemporary(name));
+		}
+	  	else if (isSymbolOneOfCaseLocals(name))
+		{
+			return getOffsetOfTemporary(case_local);
+		}
+		else if (isSymbolOneOfTemporaries(name))
+		{
+			return getOffsetOfTemporary(name);
+		}		
+		return 0;
+	}
+}
+
 void object_class::code(ostream &s) 
 {
   	if (cgen_comments)
@@ -2331,12 +2361,11 @@ void object_class::code(ostream &s)
 	}
 	else if (isSymbolOneOfCaseLocals(name))
 	{
-		// do nothing, proper object is already in the ACC.
-		emit_load(ACC, getOffsetOfTemporary(case_local), FP, s);
+		emit_load(ACC, getOffsetWithShadowing(name), FP, s);
 	}
   	else if (isSymbolOneOfTemporaries(name))
 	{
-		emit_load(ACC, getOffsetOfTemporary(name), FP, s);
+		emit_load(ACC, getOffsetWithShadowing(name), FP, s);
 	}
 	else if (isSymbolOneOfMethodArgs(name))
 	{
